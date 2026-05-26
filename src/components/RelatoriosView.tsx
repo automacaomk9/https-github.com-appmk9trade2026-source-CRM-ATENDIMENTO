@@ -139,19 +139,20 @@ export default function RelatoriosView() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={last30DaysData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
               <XAxis 
                 dataKey="data" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }} 
+                interval={3}
+                tick={{ fill: '#4B5563', fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 600 }} 
               />
               <YAxis 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }} 
+                tick={{ fill: '#4B5563', fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 600 }} 
               />
               <Tooltip 
                 content={({ active, payload, label }) => {
