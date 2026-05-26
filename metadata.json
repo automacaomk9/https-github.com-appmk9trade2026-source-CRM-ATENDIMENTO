@@ -1,0 +1,6 @@
+{
+  "name": "MK9 Portal Operacional",
+  "description": "Painel operacional e CRM de RH inteligente para a MK9 Trade Marketing. Gerencie subagentes, colaboradores, conformidade LGPD e fluxos n8n.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

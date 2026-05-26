@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-primary: #009CDE;
+  --color-secondary: #006BA6;
+  --color-mk9-blue-dark: #006BA6;
+  --color-mk9-slate: #36424A;
+  --color-mk9-gray-mid: #C9CBCB;
+  --color-whatsapp-green: #25D366;
+  --color-surface-bg: #F8F9FD;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-surface-bg);
+    color: #191c1f;
+  }
+}
+
+/* Scrollbars */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: #C9CBCB;
+  border-radius: 10px;
+}
+
