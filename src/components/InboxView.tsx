@@ -90,7 +90,7 @@ export default function InboxView({
 
   if (sessions.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-100px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans items-center justify-center">
+      <div className="flex h-full w-full border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans items-center justify-center">
         <div className="text-center p-10 max-w-md space-y-4">
           <div className="w-16 h-16 bg-[#e8fbf3] text-[#00a884] rounded-full flex items-center justify-center mx-auto shadow-inner animate-pulse">
             <span className="material-symbols-outlined !text-4xl">chat</span>
@@ -322,7 +322,7 @@ export default function InboxView({
   };
 
   return (
-    <div className="flex h-[calc(100vh-100px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans">
+    <div className="flex h-full w-full border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans">
       {/* Left Column: Conversational Sessions List styled like WhatsApp Desktop */}
       <section className="w-80 border-r border-gray-200 bg-white flex flex-col">
         {/* Sidebar Header */}

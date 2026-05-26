@@ -47,6 +47,7 @@ function loadLocalEmployees() {
       return [];
     } catch (e) {
       console.error("Error reading employees file, using defaults:", e);
+      return [];
     }
   }
   // Initialize with empty list if file doesn't exist

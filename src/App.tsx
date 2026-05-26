@@ -8,6 +8,7 @@ import {
   initialAutomationRules,
   initialApiCredentials
 } from "./data";
+import { playSubtleNotificationSound } from "./utils/audio";
 
 // Modular Imported Components
 import Sidebar from "./components/Sidebar";
@@ -21,6 +22,26 @@ import RelatoriosView from "./components/RelatoriosView";
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Safe fetch utility to parse JSON securely and filter HTML response rollbacks elegantly
+  const safeFetchJson = async (url: string, options?: RequestInit) => {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) return null;
+      const contentType = res.headers.get("content-type");
+      if (contentType && !contentType.includes("application/json")) {
+        return null; // Silent fallback for HTML or alternate payload
+      }
+      const text = await res.text();
+      if (!text || text.trim().startsWith("<")) {
+        return null; // Avoid trying to parse HTML formatted strings as JSON
+      }
+      return JSON.parse(text);
+    } catch (err) {
+      return null;
+    }
+  };
+
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem("mk9_employees");
     if (saved) {
@@ -35,16 +56,13 @@ export default function App() {
     let active = true;
     const fetchEmployeesFromServer = async () => {
       try {
-        const res = await fetch("/api/employees");
-        if (res.ok) {
-          const data = await res.json();
-          if (active && Array.isArray(data)) {
-            const cleanData = data.filter((e: any) => !["1", "2", "3", "4", "5"].includes(String(e.id)));
-            setEmployees(cleanData);
-          }
+        const data = await safeFetchJson("/api/employees");
+        if (active && data && Array.isArray(data)) {
+          const cleanData = data.filter((e: any) => !["1", "2", "3", "4", "5"].includes(String(e.id)));
+          setEmployees(cleanData);
         }
       } catch (err) {
-        console.error("Error reading employees from backend API:", err);
+        console.warn("Silent fallback reading employees from API endpoint:", err);
       }
     };
     fetchEmployeesFromServer();
@@ -59,27 +77,50 @@ export default function App() {
 
     const fetchSessionsAndAlerts = async () => {
       try {
-        const [sessRes, alertRes] = await Promise.all([
-          fetch("/api/sessions"),
-          fetch("/api/alerts")
+        const [sessData, alertData] = await Promise.all([
+          safeFetchJson("/api/sessions"),
+          safeFetchJson("/api/alerts")
         ]);
 
-        if (sessRes.ok && active) {
-          const sessData = await sessRes.json();
-          if (Array.isArray(sessData)) {
-            // Apply similar safety filter if needed or load all
-            setSessions(sessData);
-          }
+        if (sessData && Array.isArray(sessData) && active) {
+          setSessions((prevSessions) => {
+            // Only compare and play notification sound if we already have loaded some sessions initially
+            if (prevSessions && prevSessions.length > 0) {
+              const existingMessageIds = new Set<string>();
+              prevSessions.forEach((s) => {
+                if (s && Array.isArray(s.messages)) {
+                  s.messages.forEach((m) => {
+                    if (m && m.id) {
+                      existingMessageIds.add(String(m.id));
+                    }
+                  });
+                }
+              });
+
+              let hasNewIncomingMsg = false;
+              sessData.forEach((s) => {
+                if (s && Array.isArray(s.messages)) {
+                  s.messages.forEach((m) => {
+                    if (m && m.id && !existingMessageIds.has(String(m.id)) && m.sender === "user") {
+                      hasNewIncomingMsg = true;
+                    }
+                  });
+                }
+              });
+
+              if (hasNewIncomingMsg) {
+                playSubtleNotificationSound();
+              }
+            }
+            return sessData;
+          });
         }
 
-        if (alertRes.ok && active) {
-          const alertData = await alertRes.json();
-          if (Array.isArray(alertData)) {
-            setAlerts(alertData);
-          }
+        if (alertData && Array.isArray(alertData) && active) {
+          setAlerts(alertData);
         }
       } catch (err) {
-        console.error("Error polling real-time updates from backend:", err);
+        console.warn("Silent fallback while polling real-time updates:", err);
       }
     };
 
@@ -444,7 +485,7 @@ export default function App() {
       />
 
       {/* Main viewport Container (responsive left padding offset) */}
-      <div className="flex-1 min-h-screen relative pl-0 lg:pl-[280px] pt-16 overflow-hidden">
+      <div className="flex-1 h-screen relative pl-0 lg:pl-[280px] pt-16 flex flex-col overflow-hidden">
         {/* Top Header Section */}
         <Header
           onHumanAttentionClick={handleHumanAttentionClick}
@@ -455,7 +496,11 @@ export default function App() {
         />
 
         {/* Stateful Page Views with slide-in scale animation effects */}
-        <main className="p-6 max-w-7xl mx-auto min-h-[calc(100vh-64px)]">
+        <main className={`w-full max-w-7xl mx-auto min-h-0 ${
+          activeTab === "inbox"
+            ? "h-[calc(100vh-64px)] p-4 lg:p-6 flex flex-col overflow-hidden"
+            : "p-6 overflow-y-auto h-[calc(100vh-64px)]"
+        }`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -463,7 +508,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.99 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="h-full"
+              className={activeTab === "inbox" ? "h-full flex flex-col min-h-0 overflow-hidden" : "h-full"}
             >
               {activeTab === "dashboard" && (
                 <DashboardView

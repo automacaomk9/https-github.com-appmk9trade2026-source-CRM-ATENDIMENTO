@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Search, Bell, Camera, X, Upload, MoreVertical, Menu } from "lucide-react";
+import { Search, Bell, Camera, X, Upload, MoreVertical, Menu, Volume2, VolumeX } from "lucide-react";
+import { playSubtleNotificationSound } from "../utils/audio";
 
 interface HeaderProps {
   onHumanAttentionClick: () => void;
@@ -16,6 +17,9 @@ interface HeaderProps {
 export default function Header({ onHumanAttentionClick, activeTab, profile, onUpdateProfile, onToggleSidebar }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem("mk9_sound_enabled") !== "false";
+  });
   
   // Local edit states for name and role
   const [name, setName] = useState(profile.name);
@@ -100,6 +104,38 @@ export default function Header({ onHumanAttentionClick, activeTab, profile, onUp
 
         {/* Right operations (avatar, username, notifications) */}
         <div className="flex items-center gap-4 border-l border-gray-200 pl-6 h-8">
+          {/* Subtle audio controller with easy-to-use toggle */}
+          <div className="flex items-center gap-2 pr-1 border-r border-gray-100 h-6">
+            <button
+              onClick={() => {
+                const nextState = !soundEnabled;
+                setSoundEnabled(nextState);
+                localStorage.setItem("mk9_sound_enabled", String(nextState));
+                if (nextState) {
+                  playSubtleNotificationSound(true);
+                }
+              }}
+              className={`p-1.5 rounded-full transition-colors cursor-pointer flex items-center justify-center ${
+                soundEnabled 
+                  ? "text-teal-600 hover:text-teal-700 hover:bg-teal-50" 
+                  : "text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              }`}
+              title={soundEnabled ? "Sons ativados (Clique para silenciar)" : "Sons silenciados (Clique para ativar)"}
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            {soundEnabled && (
+              <button
+                type="button"
+                onClick={() => playSubtleNotificationSound(true)}
+                className="text-[9px] font-bold font-mono tracking-wider text-teal-650 hover:text-primary transition-colors bg-teal-50 border border-teal-100 rounded px-1.5 py-0.5"
+                title="Testar sinal sonoro de notificação"
+              >
+                TESTAR
+              </button>
+            )}
+          </div>
+
           {/* Notifications button with indicator */}
           <div className="relative">
             <button
