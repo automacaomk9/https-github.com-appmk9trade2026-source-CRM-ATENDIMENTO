@@ -53,6 +53,30 @@ export default function InboxView({
     return () => clearInterval(interval);
   }, [isPlayingAudio]);
 
+  if (sessions.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-100px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans items-center justify-center">
+        <div className="text-center p-10 max-w-md space-y-4">
+          <div className="w-16 h-16 bg-[#e8fbf3] text-[#00a884] rounded-full flex items-center justify-center mx-auto shadow-inner animate-pulse">
+            <span className="material-symbols-outlined !text-4xl">chat</span>
+          </div>
+          <h3 className="text-xl font-bold text-secondary">Nenhuma Conversa Ativa</h3>
+          <p className="text-sm text-gray-400">
+            O canal de WhatsApp está limpo de mensagens. Aguardando novo contato de colaborador ou inicie um simulado abaixo.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => onNewSession && onNewSession({} as any)}
+              className="px-5 py-2.5 bg-[#00a884] hover:bg-[#008f70] text-white text-xs font-bold rounded-lg cursor-pointer shadow-md shadow-[#00a884]/20 uppercase transition-all"
+            >
+              Simular Novo Chat
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleSendAsAgent = async () => {
     if (!replyText.trim()) return;
     const textToSend = replyText;

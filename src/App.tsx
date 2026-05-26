@@ -23,7 +23,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem("mk9_employees");
-    return saved ? JSON.parse(saved) : initialEmployees;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.filter((e: any) => !["1", "2", "3", "4", "5"].includes(String(e.id)));
+    }
+    return [];
   });
 
   // Load employees from the Supabase backend with local fallback on mount
@@ -34,8 +38,9 @@ export default function App() {
         const res = await fetch("/api/employees");
         if (res.ok) {
           const data = await res.json();
-          if (active && Array.isArray(data) && data.length > 0) {
-            setEmployees(data);
+          if (active && Array.isArray(data)) {
+            const cleanData = data.filter((e: any) => !["1", "2", "3", "4", "5"].includes(String(e.id)));
+            setEmployees(cleanData);
           }
         }
       } catch (err) {
@@ -49,11 +54,19 @@ export default function App() {
   }, []);
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     const saved = localStorage.getItem("mk9_alerts");
-    return saved ? JSON.parse(saved) : initialAlerts;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.filter((a: any) => !["alert-1", "alert-2", "alert-3"].includes(String(a.id)));
+    }
+    return [];
   });
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem("mk9_sessions");
-    return saved ? JSON.parse(saved) : initialChats;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.filter((s: any) => !["session-1", "session-2", "session-3"].includes(String(s.id)));
+    }
+    return [];
   });
   const [rules, setRules] = useState<AutomationRule[]>(() => {
     const saved = localStorage.getItem("mk9_rules");

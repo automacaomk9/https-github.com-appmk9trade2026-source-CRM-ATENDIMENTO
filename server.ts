@@ -38,69 +38,17 @@ function getSupabaseClient() {
 function loadLocalEmployees() {
   if (fs.existsSync(EMPLOYEES_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(EMPLOYEES_FILE, "utf-8"));
+      const data = JSON.parse(fs.readFileSync(EMPLOYEES_FILE, "utf-8"));
+      if (Array.isArray(data)) {
+        return data.filter((e: any) => !["1", "2", "3", "4", "5"].includes(String(e.id)));
+      }
+      return [];
     } catch (e) {
       console.error("Error reading employees file, using defaults:", e);
     }
   }
-  // Initialize with standard default collaborators if file doesn't exist
-  const initial = [
-    {
-      id: "1",
-      name: "Adriana Martins",
-      matricula: "MAT-982310",
-      project: "Hub de Inovação",
-      lastContact: "Hoje, 10:45",
-      lastContactTopic: "Dúvida sobre Holerite",
-      statusLGPD: "VERIFICADO",
-      cpf: "98231045612",
-      email: "adriana.martins@mk9trade.com"
-    },
-    {
-      id: "2",
-      name: "Ricardo Silva",
-      matricula: "MAT-774122",
-      project: "Operação Delta",
-      lastContact: "12 Out, 2023",
-      lastContactTopic: "Onboarding de Benefícios",
-      statusLGPD: "PENDENTE",
-      cpf: "77412245622",
-      email: "ricardo.silva@mk9trade.com"
-    },
-    {
-      id: "3",
-      name: "Lúcia Costa",
-      matricula: "MAT-120934",
-      project: "Núcleo Financeiro",
-      lastContact: "Ontem, 16:15",
-      lastContactTopic: "Solicitação de Férias",
-      statusLGPD: "VERIFICADO",
-      cpf: "12093445633",
-      email: "lucia.costa@mk9trade.com"
-    },
-    {
-      id: "4",
-      name: "Marcos Vinícius",
-      matricula: "MAT-203512",
-      project: "Logística",
-      lastContact: "Há 14 mins",
-      lastContactTopic: "Cálculos de Aviso Prévio",
-      statusLGPD: "VERIFICADO",
-      cpf: "12345678900",
-      email: "marcos.vinicius@mk9trade.com"
-    },
-    {
-      id: "5",
-      name: "João Castro",
-      matricula: "MAT-556112",
-      project: "R&S",
-      lastContact: "Hoje, 11:20",
-      lastContactTopic: "Aguardando CPF",
-      statusLGPD: "PENDENTE",
-      cpf: "55611245699",
-      email: "joao.castro@candidate.com"
-    }
-  ];
+  // Initialize with empty list if file doesn't exist
+  const initial: any[] = [];
   saveLocalEmployees(initial);
   return initial;
 }
@@ -175,7 +123,27 @@ app.get("/api/employees", async (req, res) => {
         console.log(`Fetched ${data.length} employees from Supabase`);
         return res.json(data);
       }
-      console.warn("Supabase employees select error, falling back:", error?.message);
+      if (error && error.message.includes("Could not find the table")) {
+        console.warn("\n=== SUPABASE TABLE NOT FOUND ===");
+        console.warn("Table 'public.employees' was not found in your Supabase schema.");
+        console.warn("Please execute the following SQL in your Supabase SQL Editor:");
+        console.warn(`
+CREATE TABLE public.employees (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  matricula TEXT NOT NULL,
+  project TEXT,
+  "lastContact" TEXT,
+  "lastContactTopic" TEXT,
+  "statusLGPD" TEXT,
+  cpf TEXT,
+  email TEXT
+);
+        `);
+        console.warn("Falling back smoothly to local file memory...\n");
+      } else {
+        console.warn("Supabase employees select error, falling back:", error?.message);
+      }
     } catch (err) {
       console.error("Supabase SELECT failed:", err);
     }
