@@ -194,6 +194,7 @@ export default function App() {
                   alerts={alerts}
                   onSolveAlert={handleSolveAlert}
                   onNavigateToChat={handleNavigateToChat}
+                  sessions={sessions}
                 />
               )}
 
