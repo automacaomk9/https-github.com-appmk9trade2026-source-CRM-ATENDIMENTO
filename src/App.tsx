@@ -25,6 +25,28 @@ export default function App() {
     const saved = localStorage.getItem("mk9_employees");
     return saved ? JSON.parse(saved) : initialEmployees;
   });
+
+  // Load employees from the Supabase backend with local fallback on mount
+  React.useEffect(() => {
+    let active = true;
+    const fetchEmployeesFromServer = async () => {
+      try {
+        const res = await fetch("/api/employees");
+        if (res.ok) {
+          const data = await res.json();
+          if (active && Array.isArray(data) && data.length > 0) {
+            setEmployees(data);
+          }
+        }
+      } catch (err) {
+        console.error("Error reading employees from backend API:", err);
+      }
+    };
+    fetchEmployeesFromServer();
+    return () => {
+      active = false;
+    };
+  }, []);
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     const saved = localStorage.getItem("mk9_alerts");
     return saved ? JSON.parse(saved) : initialAlerts;
@@ -98,21 +120,67 @@ export default function App() {
     setActiveTab("inbox");
   };
 
-  // Add new employee to the database list
-  const handleAddEmployee = (newEmployee: Employee) => {
-    setEmployees((prev) => [newEmployee, ...prev]);
+  // Add new employee to the database list with real backend sync
+  const handleAddEmployee = async (newEmployee: Employee) => {
+    try {
+      const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEmployee),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setEmployees((prev) => [saved, ...prev]);
+      } else {
+        setEmployees((prev) => [newEmployee, ...prev]);
+      }
+    } catch (err) {
+      console.error("Failed to add employee via API:", err);
+      setEmployees((prev) => [newEmployee, ...prev]);
+    }
   };
 
-  // Remove individual employee
-  const handleRemoveEmployee = (id: string) => {
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
+  // Remove individual employee with real backend sync
+  const handleRemoveEmployee = async (id: string) => {
+    try {
+      const res = await fetch(`/api/employees/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setEmployees((prev) => prev.filter((e) => e.id !== id));
+      } else {
+        setEmployees((prev) => prev.filter((e) => e.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to remove employee via API:", err);
+      setEmployees((prev) => prev.filter((e) => e.id !== id));
+    }
   };
 
-  // Update an existing employee securely
-  const handleUpdateEmployee = (updatedEmployee: Employee) => {
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === updatedEmployee.id ? updatedEmployee : e))
-    );
+  // Update an existing employee securely with real backend sync
+  const handleUpdateEmployee = async (updatedEmployee: Employee) => {
+    try {
+      const res = await fetch(`/api/employees/${updatedEmployee.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedEmployee),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === saved.id ? saved : e))
+        );
+      } else {
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === updatedEmployee.id ? updatedEmployee : e))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to update employee via API:", err);
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === updatedEmployee.id ? updatedEmployee : e))
+      );
+    }
   };
 
   // Toggle automation rules

@@ -1,13 +1,118 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+const EMPLOYEES_FILE = path.join(process.cwd(), "employees.json");
+
+// Lazy-initialize Supabase client
+let supabaseClient: any = null;
+
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+
+  if (url && key && url !== "MY_SUPABASE_URL" && key !== "MY_SUPABASE_ANON_KEY" && url.trim() !== "" && key.trim() !== "") {
+    if (!supabaseClient) {
+      try {
+        supabaseClient = createClient(url, key);
+        console.log("Successfully initialized Supabase client.");
+      } catch (err) {
+        console.error("Failed to initialize Supabase client:", err);
+      }
+    }
+    return supabaseClient;
+  }
+  return null;
+}
+
+// Helper to load local fallback data or create it if not present
+function loadLocalEmployees() {
+  if (fs.existsSync(EMPLOYEES_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(EMPLOYEES_FILE, "utf-8"));
+    } catch (e) {
+      console.error("Error reading employees file, using defaults:", e);
+    }
+  }
+  // Initialize with standard default collaborators if file doesn't exist
+  const initial = [
+    {
+      id: "1",
+      name: "Adriana Martins",
+      matricula: "MAT-982310",
+      project: "Hub de Inovação",
+      lastContact: "Hoje, 10:45",
+      lastContactTopic: "Dúvida sobre Holerite",
+      statusLGPD: "VERIFICADO",
+      cpf: "98231045612",
+      email: "adriana.martins@mk9trade.com"
+    },
+    {
+      id: "2",
+      name: "Ricardo Silva",
+      matricula: "MAT-774122",
+      project: "Operação Delta",
+      lastContact: "12 Out, 2023",
+      lastContactTopic: "Onboarding de Benefícios",
+      statusLGPD: "PENDENTE",
+      cpf: "77412245622",
+      email: "ricardo.silva@mk9trade.com"
+    },
+    {
+      id: "3",
+      name: "Lúcia Costa",
+      matricula: "MAT-120934",
+      project: "Núcleo Financeiro",
+      lastContact: "Ontem, 16:15",
+      lastContactTopic: "Solicitação de Férias",
+      statusLGPD: "VERIFICADO",
+      cpf: "12093445633",
+      email: "lucia.costa@mk9trade.com"
+    },
+    {
+      id: "4",
+      name: "Marcos Vinícius",
+      matricula: "MAT-203512",
+      project: "Logística",
+      lastContact: "Há 14 mins",
+      lastContactTopic: "Cálculos de Aviso Prévio",
+      statusLGPD: "VERIFICADO",
+      cpf: "12345678900",
+      email: "marcos.vinicius@mk9trade.com"
+    },
+    {
+      id: "5",
+      name: "João Castro",
+      matricula: "MAT-556112",
+      project: "R&S",
+      lastContact: "Hoje, 11:20",
+      lastContactTopic: "Aguardando CPF",
+      statusLGPD: "PENDENTE",
+      cpf: "55611245699",
+      email: "joao.castro@candidate.com"
+    }
+  ];
+  saveLocalEmployees(initial);
+  return initial;
+}
+
+function saveLocalEmployees(data: any) {
+  try {
+    fs.writeFileSync(EMPLOYEES_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Error writing employees file:", e);
+  }
+}
+
 
 app.use(express.json());
 
@@ -58,6 +163,103 @@ function getGeminiClient(customApiKey?: string): GoogleGenAI | null {
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", geminiConfigured: !!process.env.GEMINI_API_KEY });
+});
+
+// Employee CRUD Endpoints
+app.get("/api/employees", async (req, res) => {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("employees").select("*");
+      if (!error && data) {
+        console.log(`Fetched ${data.length} employees from Supabase`);
+        return res.json(data);
+      }
+      console.warn("Supabase employees select error, falling back:", error?.message);
+    } catch (err) {
+      console.error("Supabase SELECT failed:", err);
+    }
+  }
+  const local = loadLocalEmployees();
+  res.json(local);
+});
+
+app.post("/api/employees", async (req, res) => {
+  const newEmp = req.body;
+  if (!newEmp.id) {
+    newEmp.id = String(Date.now());
+  }
+  
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("employees").insert([newEmp]).select();
+      if (!error && data) {
+        console.log("Successfully inserted employee in Supabase:", data[0]);
+        return res.status(201).json(data[0] || newEmp);
+      }
+      console.warn("Supabase insert failed, storing locally:", error?.message);
+    } catch (err) {
+      console.error("Supabase INSERT failed:", err);
+    }
+  }
+  
+  const local = loadLocalEmployees();
+  local.push(newEmp);
+  saveLocalEmployees(local);
+  res.status(201).json(newEmp);
+});
+
+app.put("/api/employees/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedEmp = req.body;
+  
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("employees").update(updatedEmp).eq("id", id).select();
+      if (!error && data) {
+        console.log("Successfully updated employee in Supabase:", data[0]);
+        return res.json(data[0] || updatedEmp);
+      }
+      console.warn("Supabase update failed, storing locally:", error?.message);
+    } catch (err) {
+      console.error("Supabase UPDATE failed:", err);
+    }
+  }
+  
+  const local = loadLocalEmployees();
+  const index = local.findIndex((e: any) => e.id === id);
+  if (index !== -1) {
+    local[index] = { ...local[index], ...updatedEmp };
+    saveLocalEmployees(local);
+    res.json(local[index]);
+  } else {
+    res.status(404).json({ error: "Employee not found" });
+  }
+});
+
+app.delete("/api/employees/:id", async (req, res) => {
+  const { id } = req.params;
+  
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.from("employees").delete().eq("id", id);
+      if (!error) {
+        console.log("Successfully deleted employee in Supabase with id:", id);
+        return res.json({ success: true });
+      }
+      console.warn("Supabase delete failed, removing locally:", error?.message);
+    } catch (err) {
+      console.error("Supabase DELETE failed:", err);
+    }
+  }
+  
+  const local = loadLocalEmployees();
+  const updated = local.filter((e: any) => e.id !== id);
+  saveLocalEmployees(updated);
+  res.json({ success: true });
 });
 
 // Emika AI Q&A API Endpoint
