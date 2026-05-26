@@ -62,14 +62,20 @@ app.get("/api/health", (req, res) => {
 
 // Emika AI Q&A API Endpoint
 app.post("/api/chat", async (req, res) => {
-  const { message, history, employeeContext, customApiKey } = req.body;
+  const { message, history, employeeContext, customApiKey, provider, modelName } = req.body;
   
   if (!message) {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  const client = getGeminiClient(customApiKey);
-  
+  const reqProvider = provider || "openrouter";
+  const reqModel = modelName || "meta-llama/llama-3-70b-instruct";
+
+  const hasCustomKey = customApiKey && 
+    customApiKey !== "••••••••••••••••••••••••••••••••" && 
+    customApiKey !== "••••••••••••••••••••••••••••••••••••••••" &&
+    customApiKey.replace(/•/g, "").trim().length > 0;
+
   // Custom system prompt for Emika AI based on the n8n state machine and subagents guidelines
   const systemInstruction = `
 Você é Emika, atendente virtual do setor de Recursos Humanos (RH) da MK9TRADE.
@@ -92,6 +98,65 @@ INSTRUÇÕES IMPORTANTES:
 Se o Key estiver indisponível ou ocorrer erro, responda de acordo com essas regras de forma calorosa.
 `;
 
+  // Try OpenRouter first if provider is configured as OpenRouter
+  if (reqProvider === "openrouter") {
+    const key = hasCustomKey ? customApiKey : process.env.OPENROUTER_API_KEY;
+    if (key && key !== "MY_OPENROUTER_API_KEY") {
+      try {
+        console.log(`Routing chat to OpenRouter using model: ${reqModel}`);
+        
+        const messages: any[] = [
+          { role: "system", content: systemInstruction }
+        ];
+
+        if (Array.isArray(history)) {
+          for (const turn of history) {
+            messages.push({
+              role: turn.sender === "user" ? "user" : "assistant",
+              content: turn.text || turn.transcription || ""
+            });
+          }
+        }
+
+        messages.push({
+          role: "user",
+          content: message
+        });
+
+        const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`,
+            "HTTP-Referer": "https://ai.studio/build",
+            "X-Title": "MK9 Trade RH Portal"
+          },
+          body: JSON.stringify({
+            model: reqModel,
+            messages: messages,
+            temperature: 0.7
+          })
+        });
+
+        if (openRouterResponse.ok) {
+          const data = await openRouterResponse.json();
+          if (data && data.choices && data.choices[0] && data.choices[0].message) {
+            return res.json({ text: data.choices[0].message.content });
+          } else {
+            console.error("OpenRouter invalid response structure:", JSON.stringify(data));
+          }
+        } else {
+          const errText = await openRouterResponse.text();
+          console.error(`OpenRouter Error status ${openRouterResponse.status}:`, errText);
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch OpenRouter content:", err);
+      }
+    }
+  }
+
+  // Fallback / standard Google Gemini Client
+  const client = getGeminiClient(customApiKey);
   if (client) {
     try {
       // Structure contents with history for full conversational context

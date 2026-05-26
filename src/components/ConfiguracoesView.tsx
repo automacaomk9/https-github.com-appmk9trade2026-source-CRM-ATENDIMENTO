@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Check, Edit3, Settings, Play, Database, Server, Cpu, Link, Key, RefreshCw, Layers } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Check, Edit3, Settings, Play, Database, Server, Cpu, Link, Key, RefreshCw, Layers, Camera, Upload } from "lucide-react";
 import { AutomationRule, ApiCredentials } from "../types";
 
 interface ConfiguracoesViewProps {
@@ -7,24 +7,52 @@ interface ConfiguracoesViewProps {
   onToggleRule: (id: string) => void;
   apiCredentials: ApiCredentials;
   onUpdateCredentials: (cred: ApiCredentials) => void;
+  botAvatar: string;
+  onUpdateBotAvatar: (avatar: string) => void;
 }
 
 export default function ConfiguracoesView({
   rules,
   onToggleRule,
   apiCredentials,
-  onUpdateCredentials
+  onUpdateCredentials,
+  botAvatar,
+  onUpdateBotAvatar
 }: ConfiguracoesViewProps) {
   const [isEditingApi, setIsEditingApi] = useState(false);
+  const [isEditingLlm, setIsEditingLlm] = useState(false);
   const [instanceName, setInstanceName] = useState(apiCredentials.instanceName);
   const [apiKey, setApiKey] = useState(apiCredentials.apiKey);
   const [webhookUrl, setWebhookUrl] = useState(apiCredentials.webhookUrl);
+  const [provider, setProvider] = useState(apiCredentials.provider || "openrouter");
+  const [modelName, setModelName] = useState(apiCredentials.modelName || "meta-llama/llama-3-70b-instruct");
+  
+  const botFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBotAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ops! Por favor, selecione uma imagem com menos de 2MB para garantir o armazenamento local persistente.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          onUpdateBotAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Sync state values dynamically when prop references update
   useEffect(() => {
     setInstanceName(apiCredentials.instanceName);
     setApiKey(apiCredentials.apiKey);
     setWebhookUrl(apiCredentials.webhookUrl);
+    setProvider(apiCredentials.provider || "openrouter");
+    setModelName(apiCredentials.modelName || "meta-llama/llama-3-70b-instruct");
   }, [apiCredentials]);
 
   // Playground simulation controls
@@ -59,9 +87,20 @@ export default function ConfiguracoesView({
       ...apiCredentials,
       instanceName,
       apiKey,
-      webhookUrl
+      webhookUrl,
+      provider,
+      modelName
     });
     setIsEditingApi(false);
+  };
+
+  const handleSaveLlm = () => {
+    onUpdateCredentials({
+      ...apiCredentials,
+      provider,
+      modelName
+    });
+    setIsEditingLlm(false);
   };
 
   const handleSaveFluxo = () => {
@@ -69,7 +108,9 @@ export default function ConfiguracoesView({
       ...apiCredentials,
       instanceName,
       apiKey,
-      webhookUrl
+      webhookUrl,
+      provider,
+      modelName
     });
     setIsEditingApi(false);
     alert("Parabéns! Fluxo publicado, credenciais de integração salvas com sucesso no banco de dados.");
@@ -79,6 +120,8 @@ export default function ConfiguracoesView({
     setInstanceName(apiCredentials.instanceName);
     setApiKey(apiCredentials.apiKey);
     setWebhookUrl(apiCredentials.webhookUrl);
+    setProvider(apiCredentials.provider || "openrouter");
+    setModelName(apiCredentials.modelName || "meta-llama/llama-3-70b-instruct");
     setIsEditingApi(false);
     alert("As alterações recentes do fluxo foram descartadas.");
   };
@@ -126,10 +169,27 @@ export default function ConfiguracoesView({
             <div className="relative">
               <div className="absolute inset-0 bg-[#009cde] rounded-full blur-2xl opacity-10 animate-pulse"></div>
               {/* Premium abstract neural network profile image */}
-              <img
-                src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=180&q=80"
-                alt="Núcleo MK9 AI"
-                className="w-24 h-24 rounded-full border-4 border-gray-100 shadow-xl relative z-10"
+              <div 
+                onClick={() => botFileInputRef.current?.click()}
+                className="w-24 h-24 rounded-full border-4 border-gray-100 shadow-xl relative z-10 overflow-hidden cursor-pointer group/avatar"
+                title="Clique para alterar a logotipo / avatar do assistente cognitivo"
+              >
+                <img
+                  src={botAvatar}
+                  alt="Núcleo MK9 AI"
+                  className="w-full h-full object-cover group-hover/avatar:scale-110 transition-all duration-200"
+                />
+                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                  <Camera size={18} className="mb-0.5" />
+                  <span className="text-[8px] font-bold font-mono uppercase tracking-wider">Alterar</span>
+                </div>
+              </div>
+              <input 
+                ref={botFileInputRef}
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleBotAvatarChange}
               />
             </div>
             <div>
@@ -464,19 +524,122 @@ export default function ConfiguracoesView({
             </div>
 
             {/* LLM Infra info */}
-            <div className="p-4 bg-[#f8f9fd] rounded-xl border border-gray-200 space-y-3">
-              <p className="text-[10px] font-bold font-mono text-gray-400 uppercase tracking-widest leading-none">
-                Infraestrutura LLM Corporativa
-              </p>
+            <div className="p-4 bg-[#f8f9fd] rounded-xl border border-gray-200 space-y-3 font-sans">
+              <div className="flex justify-between items-center">
+                <p className="text-[10px] font-bold font-mono text-gray-400 uppercase tracking-widest leading-none">
+                  Infraestrutura LLM Corporativa
+                </p>
+                <button
+                  onClick={() => {
+                    if (isEditingLlm) {
+                      handleSaveLlm();
+                    } else {
+                      setIsEditingLlm(true);
+                    }
+                  }}
+                  className="text-primary font-bold text-xs font-mono flex items-center gap-1 hover:underline cursor-pointer"
+                >
+                  {isEditingLlm ? (
+                    <>
+                      <Check size={12} />
+                      <span>SALVAR MODELO</span>
+                    </>
+                  ) : (
+                    <>
+                      <Edit3 size={12} />
+                      <span>EDITAR MODELO</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">VERSÃO DO MODELO LLM</label>
-                  <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-semibold text-secondary">
-                    {apiCredentials.modelName}
-                  </div>
+                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">PROVEDOR LLM</label>
+                  {isEditingLlm ? (
+                    <select
+                      className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-gray-700 font-mono focus:outline-none focus:border-primary"
+                      value={provider}
+                      onChange={(e) => setProvider(e.target.value as "gemini" | "openrouter")}
+                    >
+                      <option value="openrouter">OpenRouter (Corporativo)</option>
+                      <option value="gemini">Google Gemini (Padrão)</option>
+                    </select>
+                  ) : (
+                    <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-semibold text-secondary capitalize">
+                      {apiCredentials.provider || "openrouter"}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">COTA DISPONÍVEL</label>
+                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">VERSÃO DO MODELO LLM</label>
+                  {isEditingLlm ? (
+                    <input
+                      type="text"
+                      className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-secondary font-mono font-semibold focus:outline-none focus:border-primary"
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      placeholder="Ex: openai/gpt-4o-mini"
+                    />
+                  ) : (
+                    <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-semibold text-secondary">
+                      {apiCredentials.modelName || "Não Definido"}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {isEditingLlm && (
+                <div className="bg-white p-3 rounded-lg border border-gray-150 space-y-2 mt-2">
+                  <p className="text-[9px] font-bold font-mono text-gray-400 uppercase tracking-wider leading-none">
+                    🔎 Modelos Populares para Custo-Benefício (Clique para aplicar)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { setModelName("openai/gpt-4o-mini"); setProvider("openrouter"); }}
+                      className="px-2 py-1 bg-gray-50 border border-gray-200 hover:border-primary hover:bg-primary/5 rounded text-[10px] font-mono text-gray-600 transition-all cursor-pointer"
+                    >
+                      openai/gpt-4o-mini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModelName("openai/gpt-4.1-mini"); setProvider("openrouter"); }}
+                      className="px-2 py-1 bg-gray-50 border border-gray-200 hover:border-primary hover:bg-primary/5 rounded text-[10px] font-mono text-gray-600 transition-all cursor-pointer"
+                    >
+                      openai/gpt-4.1-mini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModelName("meta-llama/llama-3-70b-instruct"); setProvider("openrouter"); }}
+                      className="px-2 py-1 bg-gray-50 border border-gray-200 hover:border-primary hover:bg-primary/5 rounded text-[10px] font-mono text-gray-600 transition-all cursor-pointer"
+                    >
+                      llama-3-70b
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModelName("google/gemini-2.5-flash"); setProvider("openrouter"); }}
+                      className="px-2 py-1 bg-gray-50 border border-gray-200 hover:border-primary hover:bg-primary/5 rounded text-[10px] font-mono text-gray-600 transition-all cursor-pointer"
+                    >
+                      gemini-2.5-flash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModelName("gemini-2.5-flash"); setProvider("gemini"); }}
+                      className="px-2 py-1 bg-gray-50 border border-gray-200 hover:border-primary hover:bg-primary/5 rounded text-[10px] font-mono text-gray-600 transition-all cursor-pointer"
+                    >
+                      Gemini SDK (Flash)
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-sans italic mt-1 leading-normal">
+                    💡 Permite digitar livremente qualquer string/id de modelo, concedendo flexibilidade para alterar a qualquer instante se o valor do token ou preferência mudar.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1">
+                <div>
+                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1 mt-1">COTA DISPONÍVEL</label>
                   <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-bold text-[#006BA6]">
                     {apiCredentials.availableQuota}
                   </div>

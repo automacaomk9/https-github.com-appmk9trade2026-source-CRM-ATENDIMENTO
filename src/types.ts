@@ -49,6 +49,7 @@ export interface ApiCredentials {
   modelName: string;
   availableQuota: string;
   webhookUrl: string;
+  provider?: 'gemini' | 'openrouter';
 }
 
 export interface Alert {

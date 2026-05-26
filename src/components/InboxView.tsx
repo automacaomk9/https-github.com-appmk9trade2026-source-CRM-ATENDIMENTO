@@ -127,6 +127,8 @@ export default function InboxView({
               message: textToSend,
               history: activeSession.messages,
               customApiKey: apiCredentials?.apiKey,
+              provider: apiCredentials?.provider,
+              modelName: apiCredentials?.modelName,
               employeeContext: {
                 name: activeSession.name,
                 matricula: activeSession.matricula,
@@ -171,61 +173,109 @@ export default function InboxView({
 
   return (
     <div className="flex h-[calc(100vh-100px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm font-sans">
-      {/* Left Column: Conversational Sessions List */}
-      <section className="w-80 border-r border-gray-200 bg-[#f8f9fd] flex flex-col">
-        <header className="p-4 border-b border-gray-200 bg-white">
-          <h2 className="font-bold text-lg text-secondary">Mensagens</h2>
-          <p className="text-[10px] text-gray-400 font-mono mt-0.5 uppercase tracking-wider">
-            Conversas Ativas da Emika
-          </p>
+      {/* Left Column: Conversational Sessions List styled like WhatsApp Desktop */}
+      <section className="w-80 border-r border-gray-200 bg-white flex flex-col">
+        {/* Sidebar Header */}
+        <header className="p-3 bg-[#f0f2f5] border-b border-gray-200/60 flex justify-between items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center font-bold text-xs uppercase shadow-inner">
+              MK
+            </div>
+            <div>
+              <h2 className="font-bold text-xs text-[#111b21] leading-none mb-0.5">WhatsApp Web</h2>
+              <p className="text-[10px] text-gray-500 font-medium">Controle de Conversas</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-gray-500 items-center">
+            <button className="material-symbols-outlined !text-lg text-gray-600 hover:text-gray-800 cursor-pointer">chat</button>
+            <button className="p-1 hover:bg-gray-200 rounded-full cursor-pointer text-gray-600">
+              <MoreVertical size={16} />
+            </button>
+          </div>
         </header>
 
-        <div className="flex-grow overflow-y-auto divide-y divide-gray-100 chat-scrollbar">
+        {/* Search input - Exactly matches WhatsApp screenshot style */}
+        <div className="p-2 bg-white border-b border-gray-150">
+          <div className="flex items-center gap-2 bg-[#f0f2f5] px-3 py-1.5 rounded-lg border border-gray-100">
+            <Search size={14} className="text-gray-500" />
+            <input
+              type="text"
+              placeholder="Pesquisar ou começar uma nova conversa"
+              className="w-full bg-transparent border-none text-[12px] text-gray-700 placeholder-gray-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Filters / Tab row */}
+        <div className="px-3 py-2 bg-white border-b border-gray-100 flex gap-2 overflow-x-auto select-none">
+          <button className="bg-[#e8fbf3] text-[#00a884] font-semibold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+            Tudo
+          </button>
+          <button className="bg-gray-100 text-gray-500 hover:bg-gray-200 font-semibold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+            Não Lidas
+          </button>
+          <button className="bg-gray-100 text-gray-500 hover:bg-gray-200 font-semibold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+            Favoritas
+          </button>
+        </div>
+
+        {/* Conversational Sessions List */}
+        <div className="flex-grow overflow-y-auto divide-y divide-gray-100 chat-scrollbar bg-white">
           {sessions.map((s) => {
             const isActive = s.id === activeSessionId;
             const lastMessage = s.messages[s.messages.length - 1];
-
-            // Badge styling
-            let badgeStyle = "bg-primary/10 text-primary";
-            let BadgeIcon = Clock;
-
-            if (s.status === "Atenção Humana") {
-              badgeStyle = "bg-red-50 text-red-600 border border-red-100";
-              BadgeIcon = AlertCircle;
-            } else if (s.status === "LGPD Verificada") {
-              badgeStyle = "bg-teal-50 text-teal-600 border border-teal-100";
-              BadgeIcon = CheckCircle;
-            }
 
             return (
               <div
                 key={s.id}
                 onClick={() => setActiveSessionId(s.id)}
-                className={`p-4 cursor-pointer transition-all duration-150 relative ${
+                className={`px-4 py-3 cursor-pointer transition-all flex items-center gap-3 relative ${
                   isActive
-                    ? "bg-blue-50/60 border-l-4 border-secondary"
-                    : "hover:bg-gray-100 bg-white"
+                    ? "bg-[#f0f2f5]"
+                    : "hover:bg-gray-50 bg-white"
                 }`}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-bold text-sm text-gray-800">{s.name}</span>
-                  <span className="text-[10px] text-gray-400 font-mono font-medium">
-                    {lastMessage ? lastMessage.time : "14:02"}
-                  </span>
+                <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-100 flex-shrink-0 relative">
+                  <img
+                    src={s.avatar}
+                    alt={s.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    s.status === "LGPD Verificada" ? "bg-[#25d366]" : "bg-[#f3a83b]"
+                  }`} />
                 </div>
-                
-                {/* Latested messages */}
-                <p className="text-xs text-gray-500 line-clamp-1 mb-2 font-medium">
-                  {lastMessage?.isAudio 
-                    ? "🎤 Áudio transcrito: " + lastMessage.transcription 
-                    : lastMessage?.text}
-                </p>
 
-                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full w-fit ${badgeStyle}`}>
-                  <BadgeIcon size={12} className="mt-0.5" />
-                  <span className="text-[9px] font-bold uppercase tracking-wider font-mono">
-                    {s.status}
-                  </span>
+                <div className="flex-grow overflow-hidden">
+                  <div className="flex justify-between items-baseline mb-0.5">
+                    <span className="font-semibold text-xs text-[#111b21] truncate">{s.name}</span>
+                    <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
+                      {lastMessage ? lastMessage.time : "14:02"}
+                    </span>
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 line-clamp-1 truncate font-sans text-ellipsis overflow-hidden">
+                    {lastMessage?.isAudio 
+                      ? "🎤 Áudio gravado transcrito" 
+                      : lastMessage?.text}
+                  </p>
+                </div>
+
+                {/* Status Badges on the right of the chat list */}
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  {s.status === "Atenção Humana" ? (
+                    <span className="bg-[#fff3cd] text-[#b45309] font-bold text-[8.5px] px-1.5 py-0.5 rounded uppercase tracking-wider font-mono border border-[#ffeeba]">
+                      Transbordo
+                    </span>
+                  ) : s.status === "LGPD Verificada" ? (
+                    <span className="bg-[#e8fbf3] text-[#00a884] font-bold text-[8.5px] px-1.5 py-0.5 rounded uppercase tracking-wider font-mono border border-[#c3e6cb]">
+                      LGPD OK
+                    </span>
+                  ) : (
+                    <span className="bg-gray-100 text-gray-500 font-bold text-[8.5px] px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">
+                      Aguardando
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -233,10 +283,10 @@ export default function InboxView({
         </div>
       </section>
 
-      {/* Right Column Stack: Selected Interactive Conversation Pane */}
-      <section className="flex-grow flex flex-col bg-[#f0f2f5] overflow-hidden justify-between">
+      {/* Right Column Pane: Active WhatsApp Conversation Window with Custom Tile Pattern Wallpaper */}
+      <section className="flex-grow flex flex-col bg-[#efeae2] overflow-hidden justify-between relative">
         {/* Chat Pane Header */}
-        <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shadow-sm z-10">
+        <header className="h-14 flex items-center justify-between px-4 bg-[#f0f2f5] border-b border-gray-200/80 shadow-sm z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full border border-gray-200 overflow-hidden shadow-sm">
               <img
@@ -246,34 +296,38 @@ export default function InboxView({
               />
             </div>
             <div>
-              <p className="font-bold text-sm text-secondary leading-tight">{activeSession.name}</p>
-              <p className="text-[10px] text-[#006BA6] font-semibold flex items-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
-                <span>{activeSession.statusLabel}</span>
+              <p className="font-bold text-[13px] text-[#111b21] leading-tight">{activeSession.name}</p>
+              <p className="text-[10px] text-[#54656f] font-medium flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#25d366]"></span>
+                <span className="lowercase">{activeSession.statusLabel || "online"}</span>
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer transition-colors">
-              <Search size={16} />
+          <div className="flex items-center gap-3 text-gray-600">
+            <button className="p-1.5 hover:bg-gray-200 rounded-full cursor-pointer transition-colors">
+              <Search size={18} />
             </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer transition-colors">
-              <MoreVertical size={16} />
+            <button className="p-1.5 hover:bg-gray-200 rounded-full cursor-pointer transition-colors">
+              <MoreVertical size={18} />
             </button>
           </div>
         </header>
 
-        {/* Messaging Area */}
-        <div className="flex-grow p-6 overflow-y-auto chat-scrollbar flex flex-col gap-4">
+        {/* Messaging Area with realistic beige tiled wallpaper background */}
+        <div 
+          className="flex-grow p-6 overflow-y-auto chat-scrollbar flex flex-col gap-3 relative"
+          style={{
+            backgroundColor: "#efeae2",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%23e5ddd5' fill-opacity='0.4'%3E%3Cpath fill-rule='evenodd' d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm43-23c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm-22 36c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm0-36c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3z'/%3E%3C/g%3E%3C/svg%3E")`
+          }}
+        >
           {activeSession.messages.map((m) => {
             if (m.sender === "system") {
+              // Perfect WhatsApp yellow background system notification block
               return (
-                <div key={m.id} className="flex justify-center my-3 animate-in fade-in zoom-in duration-300">
-                  <div className="bg-secondary/10 text-secondary border border-secondary/25 px-4 py-2 rounded-full flex items-center gap-2 max-w-lg shadow-sm">
-                    <span className="material-symbols-outlined !text-sm">engineering</span>
-                    <p className="text-[10px] sm:text-xs font-bold font-mono tracking-tight leading-none uppercase">
-                      {m.text}
-                    </p>
+                <div key={m.id} className="flex justify-center my-2 animate-in fade-in zoom-in duration-300">
+                  <div className="bg-[#ffeecd] text-[#54656f] text-[11px] font-sans px-3 py-1.5 rounded-lg shadow-sm text-center max-w-sm border border-[#ffe2a8]/30">
+                    🔒 {m.text}
                   </div>
                 </div>
               );
@@ -284,86 +338,112 @@ export default function InboxView({
             return (
               <div
                 key={m.id}
-                className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[85%] ${
-                  isMe ? "self-end" : "self-start"
-                } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                className={`flex flex-col ${isMe ? "items-end self-end" : "items-start self-start"} max-w-[65%] relative animate-in fade-in slide-in-from-bottom-1 duration-200`}
               >
+                {/* Simulated WhatsApp bubble tails using absolute positioned exact curve SVGs */}
+                {isMe ? (
+                  <div className="absolute top-0 -right-1.5 w-2.5 h-3 overflow-hidden select-none">
+                    <svg viewBox="0 0 8 13" className="w-2.5 h-3 fill-[#d9fdd3] text-[#d9fdd3]">
+                      <path d="M6.467 3.568L0 12.018V0h8C7.659 0 7.39.1 7.159.34l-.692.682C5.654 1.825 4.979 2.594 6.466 3.568z"/>
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="absolute top-0 -left-1.5 w-2.5 h-3 overflow-hidden select-none">
+                    <svg viewBox="0 0 8 13" className="w-2.5 h-3 fill-white text-white">
+                      <path d="M1.533 3.568L8 12.018V0H0c.341 0 .61.1.841.34l.692.682c.813.803 1.488 1.572.001 2.546z"/>
+                    </svg>
+                  </div>
+                )}
+
                 <div
-                  className={`p-3.5 rounded-xl shadow-sm border border-gray-200 relative ${
+                  className={`py-1.5 px-3 rounded-[7.5px] shadow-[0_1px_0.5px_rgba(11,20,26,.12)] relative ${
                     isMe
-                      ? "bg-whatsapp-green text-white rounded-tr-none hover:shadow"
-                      : "bg-white text-gray-800 rounded-tl-none hover:shadow"
+                      ? "bg-[#d9fdd3] text-[#111b21] rounded-tr-none"
+                      : "bg-white text-[#111b21] rounded-tl-none"
                   }`}
                 >
-                  {/* Speaker name */}
+                  {/* Speaker name/Identifier on top of Assistant response */}
                   {!isMe && (
-                    <div className="flex items-center gap-1.5 mb-1.5 text-[#009cde] font-mono text-[9px] font-bold uppercase tracking-widest leading-none">
-                      <span>✨</span>
+                    <div className="flex items-center gap-1.5 mb-1.5 text-[#00a884] font-sans text-[11px] font-bold tracking-wide leading-none">
                       <span>Emika AI</span>
+                      <span className="text-[9px] px-1 py-0.2 bg-[#00a884]/10 rounded font-mono font-medium">Setor de RH</span>
                     </div>
                   )}
 
-                  {/* Audio Player formatting if message contains audio */}
+                  {/* Audio Player formatted if message contains audio */}
                   {m.isAudio ? (
-                    <div className="space-y-2 text-white">
-                      <div className="flex items-center gap-3">
+                    <div className="space-y-2 mt-1 min-w-[240px]">
+                      <div className="flex items-center gap-3 bg-[#e8fbf3]/30 p-2 rounded-lg border border-teal-500/10">
                         <button
                           onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                          className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-all cursor-pointer"
+                          className="w-9 h-9 rounded-full bg-[#00a884] text-white flex items-center justify-center hover:bg-[#00a884]/90 transition-all cursor-pointer shadow-sm active:scale-90"
                         >
                           {isPlayingAudio ? (
-                            <span className="material-symbols-outlined !text-sm animate-ping">pause</span>
+                            <span className="material-symbols-outlined !text-base animate-pulse">pause</span>
                           ) : (
                             <Play size={14} fill="white" className="ml-0.5" />
                           )}
                         </button>
-                        <div className="h-1 w-28 bg-white/30 rounded-full overflow-hidden relative">
-                          <div
-                            className="bg-white h-full transition-all duration-300"
-                            style={{ width: `${audioProgress}%` }}
-                          ></div>
+                        <div className="flex-grow">
+                          <div className="h-1 bg-gray-200 rounded-full overflow-hidden relative">
+                            <div
+                              className="bg-[#00a884] h-full transition-all duration-300"
+                              style={{ width: `${audioProgress}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between items-center mt-1 text-[9px] text-[#54656f] font-mono">
+                            <span>transcrição automática n8n</span>
+                            <span>{m.audioDuration}</span>
+                          </div>
                         </div>
-                        <span className="text-[10px] font-mono opacity-80">{m.audioDuration}</span>
                       </div>
                       
                       {/* Transcription block */}
-                      <div className="bg-black/10 rounded-lg p-2.5 border border-white/10">
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-white/90 font-mono">
-                          Transcrição automática n8n
+                      <div className="bg-gray-50/80 rounded border border-gray-100 p-2.5">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-[#006ba6] font-mono leading-none">
+                          Transcrição automática de Áudio
                         </p>
-                        <p className="text-xs italic text-white/95 mt-1">
+                        <p className="text-[12px] italic text-[#3b3b3b] mt-1.5 font-sans leading-normal">
                           "{m.transcription}"
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm font-sans leading-relaxed whitespace-pre-line">{m.text}</p>
+                    <p className="text-[13.5px] font-sans text-[#111b21] leading-[18px] whitespace-pre-line break-words">{m.text}</p>
                   )}
 
-                  <p
-                    className={`text-[9px] mt-1.5 text-right font-mono italic leading-none block ${
-                      isMe ? "text-white/60" : "text-gray-400"
-                    }`}
-                  >
-                    {m.time}
-                  </p>
+                  {/* Timing & read checkmarks */}
+                  <div className="flex items-center justify-end gap-1 mt-1 text-[9.5px] text-[#667781] select-none font-sans text-right leading-none">
+                    <span>{m.time}</span>
+                    {isMe && (
+                      <span className="text-[#53bdeb] font-semibold text-xs leading-none relative -top-0.5" title="Lido">
+                        ✓✓
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
 
-          {/* Sparkly simulated loader when Emika is thinking */}
+          {/* Elegant WhatsApp-style writing indicator for Emika */}
           {isLoadingReply && (
-            <div className="flex items-start gap-2.5 max-w-[80%] self-start animate-pulse">
-              <div className="bg-white text-gray-700 p-3 rounded-xl rounded-tl-none border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-2 text-primary font-mono text-[9px] font-bold uppercase tracking-widest leading-none">
-                  <span className="animate-spin text-xs">✨</span>
-                  <span>Emika está digitando...</span>
+            <div className="flex items-start max-w-[65%] self-start animate-pulse relative">
+              {/* Left Tail SVG */}
+              <div className="absolute top-0 -left-1.5 w-2.5 h-3 overflow-hidden select-none">
+                <svg viewBox="0 0 8 13" className="w-2.5 h-3 fill-white text-white">
+                  <path d="M1.533 3.568L8 12.018V0H0c.341 0 .61.1.841.34l.692.682c.813.803 1.488 1.572.001 2.546z"/>
+                </svg>
+              </div>
+              <div className="bg-white text-gray-700 py-2 px-3 rounded-lg rounded-tl-none shadow-[0_1px_0.5px_rgba(11,20,26,.12)]">
+                <div className="flex items-center gap-1.5 text-[#00a884] font-sans text-[11px] font-bold tracking-wide leading-none">
+                  <span>Emika AI</span>
+                  <span className="text-[9px] font-normal lowercase tracking-normal text-gray-400">digitando...</span>
                 </div>
-                <div className="flex gap-1 mt-2.5">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                <div className="flex gap-1.5 items-center mt-2.5 h-3 w-12 justify-start pl-0.5">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0s] [animation-duration:0.9s]"></span>
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s] [animation-duration:0.9s]"></span>
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s] [animation-duration:0.9s]"></span>
                 </div>
               </div>
             </div>
@@ -372,12 +452,16 @@ export default function InboxView({
           <div ref={messageEndRef} />
         </div>
 
-        {/* Messaging footer input area */}
-        <footer className="p-4 bg-white border-t border-gray-200">
-          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 px-4 py-2 rounded-xl focus-within:ring-2 focus-within:ring-secondary transition-all">
-            <button className="text-gray-400 hover:text-primary transition-colors cursor-pointer">
-              <Paperclip size={18} />
-            </button>
+        {/* Messaging footer input styled exactly like WhatsApp Web input bar */}
+        <footer className="p-3 bg-[#f0f2f5] border-t border-gray-200/50 flex items-center gap-3 relative">
+          <button className="text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1">
+            <Smile size={23} />
+          </button>
+          <button className="text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1">
+            <Paperclip size={21} className="rotate-45" />
+          </button>
+          
+          <div className="flex-grow bg-white px-3.5 py-2.5 rounded-lg flex items-center border border-white filter drop-shadow-sm">
             <input
               type="text"
               value={replyText}
@@ -385,29 +469,26 @@ export default function InboxView({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSendAsAgent();
               }}
-              placeholder={activeSession.lgpdState === "verified" ? "Pergunte sobre INSS, Férias, FGTS, Salário..." : "Responda a Emika..."}
-              className="flex-grow bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 font-sans focus:outline-none focus:ring-0"
+              placeholder={activeSession.lgpdState === "verified" ? "Digite uma mensagem" : "Responda a Emika..."}
+              className="w-full bg-transparent border-none text-[14px] text-[#111b21] placeholder-gray-400 font-sans focus:outline-none focus:ring-0"
             />
-            <button className="text-gray-400 hover:text-primary transition-colors cursor-pointer">
-              <Smile size={18} />
-            </button>
-            <button
-              onClick={handleSendAsAgent}
-              disabled={!replyText.trim()}
-              className={`p-2 rounded-lg text-white transition-all cursor-pointer ${
-                replyText.trim()
-                  ? "bg-secondary hover:bg-secondary/90 active:scale-95 shadow-md"
-                  : "bg-gray-300 cursor-not-allowed opacity-60"
-              }`}
-            >
-              <Send size={14} className="mt-0.5 ml-0.5" />
-            </button>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono font-medium px-1 mt-1.5">
-            <span>Conversando com {activeSession.name}</span>
-            <span>Fluxo de transbordo ativo</span>
-          </div>
+          {replyText.trim() ? (
+            <button
+              onClick={handleSendAsAgent}
+              className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95"
+            >
+              <Send size={16} fill="white" className="ml-0.5" />
+            </button>
+          ) : (
+            <button
+              onClick={() => alert("Gravação de áudio simulada na plataforma. Fale agora sobre seu INSS, FGTS ou Benefício!")}
+              className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95"
+            >
+              <span className="material-symbols-outlined !text-[18px]">mic</span>
+            </button>
+          )}
         </footer>
       </section>
 

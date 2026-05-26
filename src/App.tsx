@@ -20,6 +20,7 @@ import RelatoriosView from "./components/RelatoriosView";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem("mk9_employees");
     return saved ? JSON.parse(saved) : initialEmployees;
@@ -39,6 +40,17 @@ export default function App() {
   const [apiCredentials, setApiCredentials] = useState<ApiCredentials>(() => {
     const saved = localStorage.getItem("mk9_api_credentials");
     return saved ? JSON.parse(saved) : initialApiCredentials;
+  });
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem("mk9_user_profile");
+    return saved ? JSON.parse(saved) : {
+      name: "Ricardo Silva",
+      role: "Gerente de Trade",
+      avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAj8uSrYm6I5Ew9GsMgiPhxjFzAmIP2W1j3T5aoaguZBmjUzYc1smZPUCpwt8JagsqaREButJg249OXN27Tx1ZOoImO5RDAOKye1X3ftNZFCXavO2ai9XDvDnbdSvM6tbW2Co15r67rfEh4EbqSXvI8orrl9F2lc3zn1KfIKxyiGcISKAVP3qt9wBUlfXyddLTHaK05uBf1B_jn2dGcB42FucQP6Nlz4Y1D0Of4qZ56EJDjBiitaX8bZKXg3WbSTbNLbf8ZTelckQ"
+    };
+  });
+  const [botAvatar, setBotAvatar] = useState(() => {
+    return localStorage.getItem("mk9_bot_avatar") || "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=180&q=80";
   });
 
   React.useEffect(() => {
@@ -60,6 +72,14 @@ export default function App() {
   React.useEffect(() => {
     localStorage.setItem("mk9_api_credentials", JSON.stringify(apiCredentials));
   }, [apiCredentials]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_user_profile", JSON.stringify(profile));
+  }, [profile]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_bot_avatar", botAvatar);
+  }, [botAvatar]);
 
   // --- INTERACTIVE ACTIONS ---
 
@@ -86,6 +106,13 @@ export default function App() {
   // Remove individual employee
   const handleRemoveEmployee = (id: string) => {
     setEmployees((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  // Update an existing employee securely
+  const handleUpdateEmployee = (updatedEmployee: Employee) => {
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === updatedEmployee.id ? updatedEmployee : e))
+    );
   };
 
   // Toggle automation rules
@@ -163,19 +190,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fd] flex overflow-hidden">
-      {/* Sidebar - Fixate Left */}
+      {/* Sidebar - Fixate Left (with mobile translation overlay controls) */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onNewChat={handleNewChat}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
-      {/* Main viewport Container */}
-      <div className="flex-1 min-h-screen relative pl-[280px] pt-16 overflow-hidden">
+      {/* Main viewport Container (responsive left padding offset) */}
+      <div className="flex-1 min-h-screen relative pl-0 lg:pl-[280px] pt-16 overflow-hidden">
         {/* Top Header Section */}
         <Header
           onHumanAttentionClick={handleHumanAttentionClick}
           activeTab={activeTab}
+          profile={profile}
+          onUpdateProfile={setProfile}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
         {/* Stateful Page Views with slide-in scale animation effects */}
@@ -204,6 +236,7 @@ export default function App() {
                   onSendMessage={handleSendMessage}
                   onNewSession={handleNewChat}
                   apiCredentials={apiCredentials}
+                  employees={employees}
                 />
               )}
 
@@ -213,6 +246,7 @@ export default function App() {
                   onAddEmployee={handleAddEmployee}
                   onRemoveEmployee={handleRemoveEmployee}
                   onNavigateToChat={handleNavigateToChat}
+                  onUpdateEmployee={handleUpdateEmployee}
                 />
               )}
 
@@ -224,6 +258,8 @@ export default function App() {
                   onToggleRule={handleToggleRule}
                   apiCredentials={apiCredentials}
                   onUpdateCredentials={handleUpdateCredentials}
+                  botAvatar={botAvatar}
+                  onUpdateBotAvatar={setBotAvatar}
                 />
               )}
             </motion.div>

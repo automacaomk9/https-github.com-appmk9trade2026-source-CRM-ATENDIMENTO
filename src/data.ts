@@ -105,7 +105,8 @@ export const initialApiCredentials: ApiCredentials = {
   apiKey: "••••••••••••••••••••••••••••••••",
   modelName: "llama3-70b-v2",
   availableQuota: "84% de Tokens",
-  webhookUrl: "https://api.mk9.hr/v1/webhook/whatsapp-inc..."
+  webhookUrl: "https://api.mk9.hr/v1/webhook/whatsapp-inc...",
+  provider: "openrouter"
 };
 
 export const initialChats: ChatSession[] = [

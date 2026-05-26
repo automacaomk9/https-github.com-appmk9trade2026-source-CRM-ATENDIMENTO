@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Download, Search, History, MessageSquare, Unlock, Trash2, X, AlertOctagon } from "lucide-react";
+import { Plus, Download, Search, History, MessageSquare, Unlock, Trash2, X, AlertOctagon, Edit3 } from "lucide-react";
 import { Employee } from "../types";
 
 interface ColaboradoresViewProps {
@@ -7,13 +7,15 @@ interface ColaboradoresViewProps {
   onAddEmployee: (employee: Employee) => void;
   onRemoveEmployee: (id: string) => void;
   onNavigateToChat: (chatId: string) => void;
+  onUpdateEmployee: (updated: Employee) => void;
 }
 
 export default function ColaboradoresView({
   employees,
   onAddEmployee,
   onRemoveEmployee,
-  onNavigateToChat
+  onNavigateToChat,
+  onUpdateEmployee
 }: ColaboradoresViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("Todos os Projetos");
@@ -26,6 +28,51 @@ export default function ColaboradoresView({
   const [newColabMatricula, setNewColabMatricula] = useState("");
   const [newColabProject, setNewColabProject] = useState("Hub de Inovação");
   const [newColabEmail, setNewColabEmail] = useState("");
+
+  // Edit Collaborator form states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editColabName, setEditColabName] = useState("");
+  const [editColabCpf, setEditColabCpf] = useState("");
+  const [editColabMatricula, setEditColabMatricula] = useState("");
+  const [editColabProject, setEditColabProject] = useState("");
+  const [editColabEmail, setEditColabEmail] = useState("");
+  const [editColabStatusLgpd, setEditColabStatusLgpd] = useState<"VERIFICADO" | "PENDENTE">("PENDENTE");
+
+  const handleStartEditEmployee = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setEditColabName(emp.name);
+    setEditColabCpf(emp.cpf);
+    setEditColabMatricula(emp.matricula);
+    setEditColabProject(emp.project || "Hub de Inovação");
+    setEditColabEmail(emp.email || "");
+    setEditColabStatusLgpd(emp.statusLGPD);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditEmployee = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployee || !editColabName || !editColabCpf || !editColabMatricula) {
+      alert("Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    const updated: Employee = {
+      ...editingEmployee,
+      name: editColabName,
+      matricula: editColabMatricula.toUpperCase(),
+      project: editColabProject,
+      cpf: editColabCpf.replace(/\D/g, ""), // clean digits
+      email: editColabEmail || `${editColabName.toLowerCase().replace(/\s+/g, ".")}@mk9trade.com`,
+      statusLGPD: editColabStatusLgpd,
+      lastContact: "Hoje, recém editado",
+      lastContactTopic: "Atualização de Cadastro"
+    };
+
+    onUpdateEmployee(updated);
+    setIsEditModalOpen(false);
+    setEditingEmployee(null);
+  };
 
   const handleAddNewEmployee = (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,7 +305,7 @@ export default function ColaboradoresView({
                       </td>
 
                       <td className="px-6 py-4">
-                        <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-1.5 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                           {/* Chat redirect action button */}
                           <button
                             onClick={() => onNavigateToChat("session-1")}
@@ -268,6 +315,15 @@ export default function ColaboradoresView({
                             <MessageSquare size={16} />
                           </button>
                           
+                          {/* Edit collaborator details */}
+                          <button
+                            onClick={() => handleStartEditEmployee(e)}
+                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                            title="Editar Cadastro"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+
                           {/* Force-reverify security lock button */}
                           <button
                             onClick={() => alert(`Enviado token de reautorização LGPD para o email de ${e.name}.`)}
@@ -465,6 +521,143 @@ export default function ColaboradoresView({
                   className="px-5 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg cursor-pointer"
                 >
                   Salvar Cadastro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT COLLABORATOR MODAL POPUP (CRUD - UPDATE) */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center z-50 animate-in fade-in duration-250 p-4">
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-md shadow-2xl p-6 relative animate-in zoom-in-95 duration-250 font-sans">
+            <button
+              onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-full p-1 cursor-pointer transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="text-lg font-bold text-secondary font-sans flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined">edit_note</span>
+              <span>Editar Dados do Colaborador</span>
+            </h3>
+            <p className="text-xs text-gray-400 font-sans mb-4">
+              Atualize as informações de cadastro e autenticação de segurança do colaborador.
+            </p>
+
+            <form onSubmit={handleSaveEditEmployee} className="space-y-4 text-left">
+              {/* Name */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                  NOME COMPLETO *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editColabName}
+                  onChange={(e) => setEditColabName(e.target.value)}
+                  placeholder="Ex: Carlos Heitor"
+                  className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-800"
+                />
+              </div>
+
+              {/* CPF */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                  CPF (SOMENTE NÚMEROS) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  pattern="\d{11}"
+                  maxLength={11}
+                  value={editColabCpf}
+                  onChange={(e) => setEditColabCpf(e.target.value)}
+                  placeholder="Ex: 55611245699"
+                  className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Matricula */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                    MATRÍCULA *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editColabMatricula}
+                    onChange={(e) => setEditColabMatricula(e.target.value)}
+                    placeholder="Ex: MAT-556112"
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-800"
+                  />
+                </div>
+
+                {/* Project selector */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                    PROJETO *
+                  </label>
+                  <select
+                    value={editColabProject}
+                    onChange={(e) => setEditColabProject(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-700"
+                  >
+                    <option>Hub de Inovação</option>
+                    <option>Operação Delta</option>
+                    <option>Núcleo Financeiro</option>
+                    <option>Logística</option>
+                    <option>R&S</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                  EMAIL CORPORATIVO
+                </label>
+                <input
+                  type="email"
+                  value={editColabEmail}
+                  onChange={(e) => setEditColabEmail(e.target.value)}
+                  placeholder="Ex: carlos@mk9trade.com"
+                  className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-800"
+                />
+              </div>
+
+              {/* statusLGPD */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 font-mono block mb-1">
+                  STATUS AUTORIZAÇÃO WHATSAPP *
+                </label>
+                <select
+                  value={editColabStatusLgpd}
+                  onChange={(e) => setEditColabStatusLgpd(e.target.value as "VERIFICADO" | "PENDENTE")}
+                  className="w-full bg-[#f8f9fd] border border-gray-200 rounded-lg py-1.5 px-3 text-sm font-sans focus:border-primary focus:outline-none text-gray-700 font-medium"
+                >
+                  <option value="VERIFICADO">VERIFICADO (Conforme LGPD)</option>
+                  <option value="PENDENTE">PENDENTE (Requer Aceite)</option>
+                </select>
+              </div>
+
+              {/* Actions submit */}
+              <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
+                  className="px-4 py-2 border border-gray-300 text-sm font-semibold rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg cursor-pointer"
+                >
+                  Atualizar Cadastro
                 </button>
               </div>
             </form>
