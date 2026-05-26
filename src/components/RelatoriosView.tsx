@@ -1,5 +1,39 @@
 import React from "react";
-import { BarChart3, TrendingUp, Sparkles, Award, UserCheck, PhoneCall, HelpCircle, FileText, Check } from "lucide-react";
+import { BarChart3, TrendingUp, Sparkles, Award, UserCheck, PhoneCall, HelpCircle, FileText, Check, ArrowUpRight } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
+const last30DaysData = [
+  { data: "27/04", chamados: 42, automaticos: 36 },
+  { data: "28/04", chamados: 45, automaticos: 39 },
+  { data: "29/04", chamados: 48, automaticos: 41 },
+  { data: "30/04", chamados: 52, automaticos: 44 },
+  { data: "01/05", chamados: 50, automaticos: 43 },
+  { data: "02/05", chamados: 55, automaticos: 48 },
+  { data: "03/05", chamados: 58, automaticos: 50 },
+  { data: "04/05", chamados: 63, automaticos: 55 },
+  { data: "05/05", chamados: 68, automaticos: 60 },
+  { data: "06/05", chamados: 72, automaticos: 64 },
+  { data: "07/05", chamados: 70, automaticos: 61 },
+  { data: "08/05", chamados: 75, automaticos: 66 },
+  { data: "09/05", chamados: 80, automaticos: 71 },
+  { data: "10/05", chamados: 85, automaticos: 76 },
+  { data: "11/05", chamados: 82, automaticos: 73 },
+  { data: "12/05", chamados: 88, automaticos: 78 },
+  { data: "13/05", chamados: 94, automaticos: 84 },
+  { data: "14/05", chamados: 91, automaticos: 81 },
+  { data: "15/05", chamados: 96, automaticos: 85 },
+  { data: "16/05", chamados: 102, automaticos: 90 },
+  { data: "17/05", chamados: 105, automaticos: 94 },
+  { data: "18/05", chamados: 100, automaticos: 89 },
+  { data: "19/05", chamados: 108, automaticos: 96 },
+  { data: "20/05", chamados: 112, automaticos: 100 },
+  { data: "21/05", chamados: 115, automaticos: 102 },
+  { data: "22/05", chamados: 121, automaticos: 108 },
+  { data: "23/05", chamados: 125, automaticos: 111 },
+  { data: "24/05", chamados: 120, automaticos: 106 },
+  { data: "25/05", chamados: 128, automaticos: 114 },
+  { data: "26/05", chamados: 135, automaticos: 122 }
+];
 
 export default function RelatoriosView() {
   const reportsData = [
@@ -70,6 +104,104 @@ export default function RelatoriosView() {
           <p className="text-xs text-justify text-gray-500 mt-2">
             Duração média das conversas operacionais desde a saudação até a finalização do protocolo.
           </p>
+        </div>
+      </div>
+
+      {/* Trends section using Recharts */}
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 className="font-bold text-lg text-secondary font-sans flex items-center gap-2">
+              <TrendingUp size={20} className="text-primary animate-pulse" />
+              <span>Tendência de Chamados (Últimos 30 Dias)</span>
+            </h3>
+            <p className="text-gray-400 text-xs mt-0.5">
+              Crescimento do volume de solicitações de suporte em relação ao índice de resolução automatizada por IA.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-primary rounded-full inline-block"></span>
+              <span className="text-gray-600">Volume Total</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-teal-500 rounded-full inline-block"></span>
+              <span className="text-gray-600">Autoatendimento</span>
+            </div>
+            <div className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded text-[11px] font-mono">
+              <ArrowUpRight size={14} />
+              <span>+24.8% Crescimento</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-[280px] w-full mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={last30DaysData}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+              <XAxis 
+                dataKey="data" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }} 
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#9CA3AF', fontSize: 10, fontFamily: 'monospace' }} 
+              />
+              <Tooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white/95 backdrop-blur-md p-3.5 border border-gray-100 rounded-xl shadow-xl transition-all duration-200 transform hover:scale-[1.02] font-sans">
+                        <p className="text-[10px] font-bold text-gray-400 font-mono mb-2 uppercase tracking-wide">Data: {label}</p>
+                        <div className="space-y-1.5">
+                          {payload.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-6">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full block" style={{ backgroundColor: item.stroke }} />
+                                <span className="text-xs text-gray-600 font-medium">{item.name}</span>
+                              </div>
+                              <span className="text-xs font-bold font-mono ml-auto text-secondary">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Line 
+                name="Volume de Chamados" 
+                type="monotone" 
+                dataKey="chamados" 
+                stroke="#009cde" 
+                strokeWidth={3} 
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0, className: "transition-all duration-150" }} 
+                isAnimationActive={true}
+                animationDuration={1500}
+                animationEasing="ease-out"
+              />
+              <Line 
+                name="Atendidos Automaticamente" 
+                type="monotone" 
+                dataKey="automaticos" 
+                stroke="#0d9488" 
+                strokeWidth={2} 
+                strokeDasharray="4 4"
+                dot={false} 
+                isAnimationActive={true}
+                animationDuration={1800}
+                animationEasing="ease-out"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
