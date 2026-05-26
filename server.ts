@@ -14,11 +14,29 @@ app.use(express.json());
 // Lazy-initialize Gemini client to prevent crash if key is missing
 let aiClient: GoogleGenAI | null = null;
 
-function getGeminiClient(): GoogleGenAI | null {
-  if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (key && key !== "MY_GEMINI_API_KEY") {
-      try {
+function getGeminiClient(customApiKey?: string): GoogleGenAI | null {
+  const hasCustomKey = customApiKey && 
+    customApiKey !== "••••••••••••••••••••••••••••••••" && 
+    customApiKey !== "••••••••••••••••••••••••••••••••••••••••" &&
+    customApiKey.replace(/•/g, "").trim().length > 0;
+
+  const key = hasCustomKey ? customApiKey : process.env.GEMINI_API_KEY;
+
+  if (key && key !== "MY_GEMINI_API_KEY") {
+    try {
+      // Re-create dynamically if custom key provided, otherwise cache default env key
+      if (hasCustomKey) {
+        return new GoogleGenAI({
+          apiKey: key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+      }
+      
+      if (!aiClient) {
         aiClient = new GoogleGenAI({
           apiKey: key,
           httpOptions: {
@@ -27,15 +45,14 @@ function getGeminiClient(): GoogleGenAI | null {
             }
           }
         });
-        console.log("Successfully initialized GoogleGenAI client.");
-      } catch (err) {
-        console.error("Failed to initialize GoogleGenAI client:", err);
+        console.log("Successfully initialized default GoogleGenAI client.");
       }
-    } else {
-      console.warn("GEMINI_API_KEY is not defined or is placeholder. Falling back to local simulation.");
+      return aiClient;
+    } catch (err) {
+      console.error("Failed to initialize GoogleGenAI client:", err);
     }
   }
-  return aiClient;
+  return null;
 }
 
 // API Routes
@@ -45,13 +62,13 @@ app.get("/api/health", (req, res) => {
 
 // Emika AI Q&A API Endpoint
 app.post("/api/chat", async (req, res) => {
-  const { message, history, employeeContext } = req.body;
+  const { message, history, employeeContext, customApiKey } = req.body;
   
   if (!message) {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  const client = getGeminiClient();
+  const client = getGeminiClient(customApiKey);
   
   // Custom system prompt for Emika AI based on the n8n state machine and subagents guidelines
   const systemInstruction = `

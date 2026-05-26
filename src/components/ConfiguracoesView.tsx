@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Check, Edit3, Settings, Play, Database, Server, Cpu, Link, Key, RefreshCw, Layers } from "lucide-react";
 import { AutomationRule, ApiCredentials } from "../types";
 
@@ -19,6 +19,13 @@ export default function ConfiguracoesView({
   const [instanceName, setInstanceName] = useState(apiCredentials.instanceName);
   const [apiKey, setApiKey] = useState(apiCredentials.apiKey);
   const [webhookUrl, setWebhookUrl] = useState(apiCredentials.webhookUrl);
+
+  // Sync state values dynamically when prop references update
+  useEffect(() => {
+    setInstanceName(apiCredentials.instanceName);
+    setApiKey(apiCredentials.apiKey);
+    setWebhookUrl(apiCredentials.webhookUrl);
+  }, [apiCredentials]);
 
   // Playground simulation controls
   const [selectedSubagent, setSelectedSubagent] = useState("ferias");
@@ -57,6 +64,25 @@ export default function ConfiguracoesView({
     setIsEditingApi(false);
   };
 
+  const handleSaveFluxo = () => {
+    onUpdateCredentials({
+      ...apiCredentials,
+      instanceName,
+      apiKey,
+      webhookUrl
+    });
+    setIsEditingApi(false);
+    alert("Parabéns! Fluxo publicado, credenciais de integração salvas com sucesso no banco de dados.");
+  };
+
+  const handleDiscardFluxo = () => {
+    setInstanceName(apiCredentials.instanceName);
+    setApiKey(apiCredentials.apiKey);
+    setWebhookUrl(apiCredentials.webhookUrl);
+    setIsEditingApi(false);
+    alert("As alterações recentes do fluxo foram descartadas.");
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header Title */}
@@ -71,13 +97,13 @@ export default function ConfiguracoesView({
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => alert("As alterações recentes do fluxo foram descartadas.")}
+            onClick={handleDiscardFluxo}
             className="px-6 py-2.5 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-bold text-xs font-sans tracking-wide transition-all uppercase cursor-pointer"
           >
             Descartar
           </button>
           <button
-            onClick={() => alert("Parabéns! Fluxo publicado e Webhook n8n sincronizado com sucesso.")}
+            onClick={handleSaveFluxo}
             className="px-6 py-2.5 bg-secondary text-white hover:bg-secondary/90 rounded-lg font-bold text-xs font-sans tracking-wide transition-all uppercase cursor-pointer shadow-md shadow-secondary/15"
           >
             Salvar Fluxo
@@ -384,35 +410,53 @@ export default function ConfiguracoesView({
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">INSTÂNCIA WHATSAPP</label>
+                    {isEditingApi ? (
+                      <input
+                        type="text"
+                        className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-gray-700 font-mono"
+                        value={instanceName}
+                        onChange={(e) => setInstanceName(e.target.value)}
+                      />
+                    ) : (
+                      <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-semibold text-secondary">
+                        {apiCredentials.instanceName}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">CHAVE DA API</label>
+                    {isEditingApi ? (
+                      <input
+                        type="text"
+                        className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-gray-700 font-mono"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                    ) : (
+                      <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 text-gray-500 font-bold truncate max-w-[200px]">
+                        {apiCredentials.apiKey && apiCredentials.apiKey.includes("••") ? "•••••••••••••••••••••••••" : apiCredentials.apiKey}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">INSTÂNCIA WHATSAPP</label>
+                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">WEBHOOK URL (n8n)</label>
                   {isEditingApi ? (
                     <input
                       type="text"
                       className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-gray-700 font-mono"
-                      value={instanceName}
-                      onChange={(e) => setInstanceName(e.target.value)}
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
                     />
                   ) : (
-                    <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 font-semibold text-secondary">
-                      {apiCredentials.instanceName}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-[9px] font-bold font-mono text-gray-400 block mb-1">CHAVE DA API</label>
-                  {isEditingApi ? (
-                    <input
-                      type="password"
-                      className="w-full bg-white border border-gray-200 rounded px-2.5 py-1 text-xs text-gray-700 font-mono"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                    />
-                  ) : (
-                    <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 text-gray-500 font-bold">
-                      •••••••••••••••••••••••••
+                    <div className="bg-white px-3 py-1.5 rounded text-xs font-mono border border-gray-200 text-gray-600 font-semibold truncate">
+                      {apiCredentials.webhookUrl}
                     </div>
                   )}
                 </div>

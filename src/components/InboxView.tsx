@@ -1,15 +1,27 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AlertCircle, CheckCircle, Clock, Search, MoreVertical, Play, Paperclip, Smile, Send, Folder, UserCheck, HardDrive, Cpu, AlertTriangle } from "lucide-react";
-import { ChatSession, ChatMessage } from "../types";
-import { initialEmployees } from "../data";
+import { ChatSession, ChatMessage, ApiCredentials, Employee } from "../types";
 
 interface InboxViewProps {
   sessions: ChatSession[];
-  onSendMessage: (sessionId: string, text: string, sender: "user" | "emika" | "system") => void;
+  onSendMessage: (
+    sessionId: string, 
+    text: string, 
+    sender: "user" | "emika" | "system",
+    extraUpdates?: Partial<ChatSession>
+  ) => void;
   onNewSession: (session: ChatSession) => void;
+  apiCredentials?: ApiCredentials;
+  employees?: Employee[];
 }
 
-export default function InboxView({ sessions, onSendMessage, onNewSession }: InboxViewProps) {
+export default function InboxView({ 
+  sessions, 
+  onSendMessage, 
+  onNewSession,
+  apiCredentials,
+  employees = []
+}: InboxViewProps) {
   const [activeSessionId, setActiveSessionId] = useState<string>("session-1");
   const [replyText, setReplyText] = useState("");
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -76,7 +88,7 @@ export default function InboxView({ sessions, onSendMessage, onNewSession }: Inb
           emikaReply = "Autorização registrada e segura! ✅\n\nAgora, por favor, informe seu CPF de cadastro (somente os 11 dígitos, sem pontos ou traços):";
           updatedLgpdState = "waiting_cpf";
         } else {
-          emikaReply = "Entendido, João. Sem o consentimento LGPD, não consigo acessar suas informações confidenciais automaticamente de folha de pagamento.\n\nSe precisar de ajuda manual, acione nossa equipe pelo chamado de suporte. Até logo! 🙏";
+          emikaReply = "Entendido. Sem o consentimento LGPD, não consigo acessar suas informações confidenciais automaticamente de folha de pagamento.\n\nSe precisar de ajuda manual, acione nossa equipe pelo chamado de suporte. Até logo! 🙏";
           updatedLgpdState = null;
         }
       } 
@@ -85,8 +97,8 @@ export default function InboxView({ sessions, onSendMessage, onNewSession }: Inb
         if (cleanCpf.length !== 11) {
           emikaReply = "Hmm, não consegui identificar um CPF com 11 dígitos válidos. 🤔 Por favor, envie seu CPF contendo todos os números:";
         } else {
-          // Look up employee by CPF
-          const matchedEmployee = initialEmployees.find(e => e.cpf === cleanCpf || cleanCpf === "12345678900");
+          // Look up employee by CPF dynamically in the database
+          const matchedEmployee = employees.find(e => e.cpf.replace(/\D/g, "") === cleanCpf || cleanCpf === "12345678900");
           if (matchedEmployee) {
             tempCPF = cleanCpf;
             emikaReply = `Cadastro localizado com sucesso! 😊\n\n👤 **Nome:** ${matchedEmployee.name}\n📋 **Matrícula:** ${matchedEmployee.matricula}\n🏢 **Projeto Ativo:** ${matchedEmployee.project}\n\nEsses dados pertencem a você e estão corretos? Responda "Sim" ou "Não".`;
@@ -100,7 +112,6 @@ export default function InboxView({ sessions, onSendMessage, onNewSession }: Inb
         if (msgLower.includes("sim") || msgLower.includes("s") || msgLower.includes("correto") || msgLower.includes("confirmar")) {
           emikaReply = "Ótimo, identidade confirmada por autenticação LGPD! 🎉\n\nDigite o número do assunto de RH que você quer consultar:\n\n1️⃣ **INSS** (Afastamentos)\n2️⃣ **FGTS** (Multas e Saques)\n3️⃣ **FÉRIAS** (Agendamentos e Remuneração)\n4️⃣ **BENEFÍCIOS** (VA, VR, Odonto Bradesco)\n5️⃣ **RESCISÃO** (Verbas e Prazos)\n6️⃣ **SALÁRIO** (Descontos e Contrachenque)\n\nMe responda com o número e eu puxo no sistema! 😊";
           updatedLgpdState = "verified";
-          activeSession.status = "LGPD Verificada";
         } else {
           emikaReply = "Tudo bem, vamos redefinir. Por favor, digite seu CPF correto (somente os 11 números) para nova consulta:";
           updatedLgpdState = "waiting_cpf";
@@ -115,6 +126,7 @@ export default function InboxView({ sessions, onSendMessage, onNewSession }: Inb
             body: JSON.stringify({
               message: textToSend,
               history: activeSession.messages,
+              customApiKey: apiCredentials?.apiKey,
               employeeContext: {
                 name: activeSession.name,
                 matricula: activeSession.matricula,
@@ -138,16 +150,20 @@ export default function InboxView({ sessions, onSendMessage, onNewSession }: Inb
           } else if (msgLower === "4" || msgLower.includes("benefício") || msgLower.includes("beneficios")) {
             emikaReply = "**[Saúde e Benefícios]** 🍽️\n\n• **VA/VR:** Dividido quinzenalmente o crédito no cartão Alelo.\n• **Plano de Saúde/Odonto:** Bradesco Odontológico está disponível gratuitamente após os 90 dias regulamentares de experiência.";
           } else {
-            emikaReply = "Entendi sua solicitação. Carregando documentos do subagente MK9... Gostaria de receber o passo a passo completo de holerite por PDF ou tem alguma dúvida adicional sobre compensações? 😊";
+            emikaReply = "Entendi sua dúvida. Como assistente virtual do RH, gostaria de ajudar você com suas dúvidas trabalhistas. Se precisar de ajuda manual, acione nossa equipe!";
           }
         }
       }
 
-      // 2. Append Emika reply and update session settings
-      onSendMessage(activeSessionId, emikaReply, "emika");
-      activeSession.lgpdState = updatedLgpdState;
-      activeSession.tempName = tempName;
-      activeSession.tempCPF = tempCPF;
+      // 2. Append Emika reply and update session settings in an immutable way
+      const isVerified = updatedLgpdState === "verified";
+      onSendMessage(activeSessionId, emikaReply, "emika", {
+        lgpdState: updatedLgpdState,
+        tempName,
+        tempCPF,
+        status: isVerified ? "LGPD Verificada" : (updatedLgpdState === null ? "Aguardando CPF" : "Aguardando CPF"),
+        statusLabel: isVerified ? "LGPD Verificada" : (updatedLgpdState === null ? "Status: Aguardando consentimento legal" : "Status: Iniciando Verificação")
+      });
 
       setIsLoadingReply(false);
     }, 1500);

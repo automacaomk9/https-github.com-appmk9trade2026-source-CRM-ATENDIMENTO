@@ -20,11 +20,46 @@ import RelatoriosView from "./components/RelatoriosView";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
-  const [sessions, setSessions] = useState<ChatSession[]>(initialChats);
-  const [rules, setRules] = useState<AutomationRule[]>(initialAutomationRules);
-  const [apiCredentials, setApiCredentials] = useState<ApiCredentials>(initialApiCredentials);
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    const saved = localStorage.getItem("mk9_employees");
+    return saved ? JSON.parse(saved) : initialEmployees;
+  });
+  const [alerts, setAlerts] = useState<Alert[]>(() => {
+    const saved = localStorage.getItem("mk9_alerts");
+    return saved ? JSON.parse(saved) : initialAlerts;
+  });
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    const saved = localStorage.getItem("mk9_sessions");
+    return saved ? JSON.parse(saved) : initialChats;
+  });
+  const [rules, setRules] = useState<AutomationRule[]>(() => {
+    const saved = localStorage.getItem("mk9_rules");
+    return saved ? JSON.parse(saved) : initialAutomationRules;
+  });
+  const [apiCredentials, setApiCredentials] = useState<ApiCredentials>(() => {
+    const saved = localStorage.getItem("mk9_api_credentials");
+    return saved ? JSON.parse(saved) : initialApiCredentials;
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_employees", JSON.stringify(employees));
+  }, [employees]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_alerts", JSON.stringify(alerts));
+  }, [alerts]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_sessions", JSON.stringify(sessions));
+  }, [sessions]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_rules", JSON.stringify(rules));
+  }, [rules]);
+
+  React.useEffect(() => {
+    localStorage.setItem("mk9_api_credentials", JSON.stringify(apiCredentials));
+  }, [apiCredentials]);
 
   // --- INTERACTIVE ACTIONS ---
 
@@ -66,7 +101,12 @@ export default function App() {
   };
 
   // Add messages inside active session
-  const handleSendMessage = (sessionId: string, text: string, sender: "user" | "emika" | "system") => {
+  const handleSendMessage = (
+    sessionId: string, 
+    text: string, 
+    sender: "user" | "emika" | "system",
+    extraUpdates?: Partial<ChatSession>
+  ) => {
     setSessions((prev) =>
       prev.map((s) => {
         if (s.id === sessionId) {
@@ -84,7 +124,8 @@ export default function App() {
 
           return {
             ...s,
-            messages: [...s.messages, newMsg]
+            messages: [...s.messages, newMsg],
+            ...extraUpdates
           };
         }
         return s;
@@ -161,6 +202,7 @@ export default function App() {
                   sessions={sessions}
                   onSendMessage={handleSendMessage}
                   onNewSession={handleNewChat}
+                  apiCredentials={apiCredentials}
                 />
               )}
 
