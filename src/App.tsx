@@ -52,6 +52,48 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  // Sync sessions and alerts in real-time with backend polling
+  React.useEffect(() => {
+    let active = true;
+
+    const fetchSessionsAndAlerts = async () => {
+      try {
+        const [sessRes, alertRes] = await Promise.all([
+          fetch("/api/sessions"),
+          fetch("/api/alerts")
+        ]);
+
+        if (sessRes.ok && active) {
+          const sessData = await sessRes.json();
+          if (Array.isArray(sessData)) {
+            // Apply similar safety filter if needed or load all
+            setSessions(sessData);
+          }
+        }
+
+        if (alertRes.ok && active) {
+          const alertData = await alertRes.json();
+          if (Array.isArray(alertData)) {
+            setAlerts(alertData);
+          }
+        }
+      } catch (err) {
+        console.error("Error polling real-time updates from backend:", err);
+      }
+    };
+
+    // Initial fetch
+    fetchSessionsAndAlerts();
+
+    // Fast polling interval (2.5 seconds) for real-time whatsapp feed propagation
+    const intervalId = setInterval(fetchSessionsAndAlerts, 2500);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, []);
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     const saved = localStorage.getItem("mk9_alerts");
     if (saved) {
@@ -124,8 +166,15 @@ export default function App() {
   };
 
   // Solve/dismiss an alert dynamically
-  const handleSolveAlert = (alertId: string) => {
+  const handleSolveAlert = async (alertId: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    try {
+      await fetch(`/api/alerts/${alertId}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Failed to dismiss alert on server:", err);
+    }
   };
 
   // Navigate directly to a specific chat session (e.g. from alert dashboard)
@@ -209,12 +258,15 @@ export default function App() {
   };
 
   // Add messages inside active session
-  const handleSendMessage = (
+  const handleSendMessage = async (
     sessionId: string, 
     text: string, 
     sender: "user" | "emika" | "system",
-    extraUpdates?: Partial<ChatSession>
+    extraUpdates?: Partial<ChatSession>,
+    extraMsgUpdates?: Partial<ChatMessage>
   ) => {
+    let finalSessionToSync: ChatSession | null = null;
+    
     setSessions((prev) =>
       prev.map((s) => {
         if (s.id === sessionId) {
@@ -227,39 +279,111 @@ export default function App() {
             id: `msg-${Date.now()}`,
             sender,
             text,
-            time: timestamp
+            time: timestamp,
+            ...extraMsgUpdates
           };
 
-          return {
+          const updated = {
             ...s,
             messages: [...s.messages, newMsg],
             ...extraUpdates
           };
+
+          finalSessionToSync = updated;
+          return updated;
         }
         return s;
       })
     );
+
+    if (finalSessionToSync) {
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalSessionToSync)
+        });
+      } catch (err) {
+        console.error("Failed to sync message to server:", err);
+      }
+    }
   };
+
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatForm, setNewChatForm] = useState({
+    name: "",
+    project: "",
+    matricula: "",
+    cpf: "",
+    email: ""
+  });
+  const [activePresetIndex, setActivePresetIndex] = useState<number | null>(0);
+
+  const presetCollaborators = [
+    {
+      name: "Davi Lima",
+      avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
+      project: "Hub de Inovação",
+      matricula: "MAT-559218",
+      cpf: "123.456.789-00",
+      email: "davi.lima@mk9trade.com"
+    },
+    {
+      name: "Mariana Souza",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+      project: "Operação Delta",
+      matricula: "MAT-773210",
+      cpf: "456.789.012-33",
+      email: "mariana.souza@mk9trade.com"
+    },
+    {
+      name: "Gustavo Henrique",
+      avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80",
+      project: "Logística Setorial",
+      matricula: "MAT-110294",
+      cpf: "987.654.321-22",
+      email: "gustavo.henrique@mk9trade.com"
+    },
+    {
+      name: "Ana Paula",
+      avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80",
+      project: "Mercado e Trade",
+      matricula: "MAT-884129",
+      cpf: "321.654.987-11",
+      email: "ana.paula@mk9trade.com"
+    }
+  ];
 
   // Nova Conversa creation setup
   const handleNewChat = () => {
+    setShowNewChatModal(true);
+  };
+
+  const handleStartCustomChat = async (sessionData: {
+    name: string;
+    avatar: string;
+    project: string;
+    matricula: string;
+    cpf: string;
+    email: string;
+  }) => {
     const uniqueId = `session-${Date.now()}`;
     const newSession: ChatSession = {
       id: uniqueId,
-      name: "Davi Lima",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
+      name: sessionData.name,
+      avatar: sessionData.avatar,
       status: "Aguardando CPF",
       statusLabel: "Status: Aguardando consentimento legal",
-      project: "Hub de Inovação",
-      matricula: "#5592",
-      cpf: "123.456.789-00",
-      email: "davi.lima@mk9trade.com",
+      project: sessionData.project,
+      matricula: sessionData.matricula,
+      cpf: sessionData.cpf,
+      email: sessionData.email,
       lgpdState: null, // trigger interactive flow
       messages: [
         {
           id: "msg-init",
           sender: "emika",
-          text: "Olá! Como vai? 😊 Eu sou a Emika, assistente virtual do RH da MK9TRADE.\n\nPor favor, envie qualquer mensagem para iniciarmos nossa conversa e validarmos suas permissões LGPD!",
+          text: `Olá! Como vai? 😊 Eu sou a Emika, assistente virtual do RH da MK9TRADE.\n\nPor favor, envie qualquer mensagem para iniciarmos nossa conversa e validarmos suas permissões LGPD!`,
           time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
         }
       ]
@@ -267,6 +391,45 @@ export default function App() {
 
     setSessions((prev) => [newSession, ...prev]);
     setActiveTab("inbox");
+    setShowNewChatModal(false);
+
+    try {
+      await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSession)
+      });
+    } catch (err) {
+      console.error("Failed to create new session on server:", err);
+    }
+  };
+
+  const executeStartChat = () => {
+    if (activePresetIndex !== null) {
+      const selected = presetCollaborators[activePresetIndex];
+      handleStartCustomChat(selected);
+    } else {
+      if (!newChatForm.name.trim()) {
+        alert("Por favor, informe pelo menos o nome do colaborador.");
+        return;
+      }
+      handleStartCustomChat({
+        name: newChatForm.name,
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+        project: newChatForm.project || "Geral",
+        matricula: newChatForm.matricula || `#MAT-${Math.floor(Math.random() * 900000 + 100000)}`,
+        cpf: newChatForm.cpf || "000.000.000-00",
+        email: newChatForm.email || `${newChatForm.name.toLowerCase().replace(/\s+/g, ".")}@mk9trade.com`
+      });
+      // Reset form
+      setNewChatForm({
+        name: "",
+        project: "",
+        matricula: "",
+        cpf: "",
+        email: ""
+      });
+    }
   };
 
   return (
@@ -347,6 +510,192 @@ export default function App() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Modal Nova Conversa */}
+      <AnimatePresence>
+        {showNewChatModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNewChatModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-6 bg-[#00a884] text-white flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold font-sans">Simular Nova Conversa (WhatsApp)</h3>
+                  <p className="text-xs text-teal-100 mt-1">Crie um novo contato simulado recebendo mensagem na Caixa de Entrada</p>
+                </div>
+                <button
+                  onClick={() => setShowNewChatModal(false)}
+                  className="text-teal-50 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-gray-100 bg-gray-50 p-1">
+                <button
+                  onClick={() => setActivePresetIndex(0)}
+                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all text-center cursor-pointer ${
+                    activePresetIndex !== null
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  Colaboradores Sugeridos
+                </button>
+                <button
+                  onClick={() => {
+                    setActivePresetIndex(null);
+                  }}
+                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all text-center cursor-pointer ${
+                    activePresetIndex === null
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  Inserir Manualmente (Custom)
+                </button>
+              </div>
+
+              {/* Content body */}
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                {activePresetIndex !== null ? (
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Selecione uma persona para teste:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {presetCollaborators.map((pc, idx) => (
+                        <div
+                          key={pc.name}
+                          onClick={() => setActivePresetIndex(idx)}
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-3.5 ${
+                            activePresetIndex === idx
+                              ? "border-[#00a884] bg-teal-50/20"
+                              : "border-gray-100 hover:border-gray-200 bg-white"
+                          }`}
+                        >
+                          <img
+                            src={pc.avatar}
+                            alt={pc.name}
+                            className={`w-12 h-12 rounded-full object-cover border-2 ${
+                              activePresetIndex === idx ? "border-[#00a884]" : "border-gray-100"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 text-sm truncate">{pc.name}</p>
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">{pc.project}</p>
+                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-500 font-mono">
+                              <span>CPF: {pc.cpf}</span>
+                              <span className="text-gray-300">•</span>
+                              <span>{pc.matricula}</span>
+                            </div>
+                          </div>
+                          {activePresetIndex === idx && (
+                            <div className="w-5 h-5 rounded-full bg-[#00a884] text-white flex items-center justify-center">
+                              <span className="material-symbols-outlined !text-xs">check</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Informe os dados cadastrais do novo colaborador:</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Nome Completo</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Roberto Carlos da Silva"
+                          value={newChatForm.name}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, name: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Projeto / Setor</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Operação Trade Nordeste"
+                          value={newChatForm.project}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, project: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">C.P.F. (Para simulação de LGPD)</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: 999.999.999-99"
+                          value={newChatForm.cpf}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, cpf: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Matrícula Corporativa</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: MAT-102930"
+                          value={newChatForm.matricula}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, matricula: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">E-mail Corporativo</label>
+                      <input
+                        type="email"
+                        placeholder="Ex: roberto.silva@mk9trade.com"
+                        value={newChatForm.email}
+                        onChange={(e) => setNewChatForm({ ...newChatForm, email: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="p-6 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+                <button
+                  onClick={() => setShowNewChatModal(false)}
+                  className="px-5 py-2.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-500 uppercase hover:bg-gray-100 transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={executeStartChat}
+                  className="px-6 py-2.5 bg-[#00a884] hover:bg-[#009172] text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-[#00a884]/20 uppercase"
+                >
+                  <span className="material-symbols-outlined !text-sm">chat</span>
+                  <span>Iniciar Conversa Simulada</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

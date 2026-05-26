@@ -18,6 +18,10 @@ export interface ChatMessage {
   isAudio?: boolean;
   audioDuration?: string;
   transcription?: string;
+  isFile?: boolean;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
 }
 
 export interface ChatSession {

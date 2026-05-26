@@ -12,6 +12,8 @@ const app = express();
 const PORT = 3000;
 
 const EMPLOYEES_FILE = path.join(process.cwd(), "employees.json");
+const SESSIONS_FILE = path.join(process.cwd(), "sessions.json");
+const ALERTS_FILE = path.join(process.cwd(), "alerts.json");
 
 // Lazy-initialize Supabase client
 let supabaseClient: any = null;
@@ -58,6 +60,50 @@ function saveLocalEmployees(data: any) {
     fs.writeFileSync(EMPLOYEES_FILE, JSON.stringify(data, null, 2), "utf-8");
   } catch (e) {
     console.error("Error writing employees file:", e);
+  }
+}
+
+function loadLocalSessions() {
+  if (fs.existsSync(SESSIONS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
+      if (Array.isArray(data)) {
+        return data;
+      }
+    } catch (e) {
+      console.error("Error reading sessions file:", e);
+    }
+  }
+  return [];
+}
+
+function saveLocalSessions(data: any) {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Error writing sessions file:", e);
+  }
+}
+
+function loadLocalAlerts() {
+  if (fs.existsSync(ALERTS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(ALERTS_FILE, "utf-8"));
+      if (Array.isArray(data)) {
+        return data;
+      }
+    } catch (e) {
+      console.error("Error reading alerts file:", e);
+    }
+  }
+  return [];
+}
+
+function saveLocalAlerts(data: any) {
+  try {
+    fs.writeFileSync(ALERTS_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Error writing alerts file:", e);
   }
 }
 
@@ -228,6 +274,285 @@ app.delete("/api/employees/:id", async (req, res) => {
   const updated = local.filter((e: any) => e.id !== id);
   saveLocalEmployees(updated);
   res.json({ success: true });
+});
+
+// --- Chat Sessions CRUD Endpoints ---
+app.get("/api/sessions", async (req, res) => {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("sessions").select("*");
+      if (!error && data) {
+        return res.json(data);
+      }
+    } catch (err) {
+      console.error("Supabase select sessions error:", err);
+    }
+  }
+  const local = loadLocalSessions();
+  res.json(local);
+});
+
+app.post("/api/sessions", async (req, res) => {
+  const newSession = req.body;
+  if (!newSession.id) {
+    newSession.id = `session-${Date.now()}`;
+  }
+  if (!newSession.messages) {
+    newSession.messages = [];
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("sessions").insert([newSession]).select();
+      if (!error && data) {
+        return res.status(201).json(data[0]);
+      }
+    } catch (err) {
+      console.error("Supabase insert session error:", err);
+    }
+  }
+
+  const local = loadLocalSessions();
+  const existingIndex = local.findIndex((s: any) => s.id === newSession.id);
+  if (existingIndex !== -1) {
+    local[existingIndex] = { ...local[existingIndex], ...newSession };
+  } else {
+    local.unshift(newSession);
+  }
+  saveLocalSessions(local);
+  res.status(201).json(newSession);
+});
+
+app.put("/api/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedSession = req.body;
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("sessions").update(updatedSession).eq("id", id).select();
+      if (!error && data) {
+        return res.json(data[0]);
+      }
+    } catch (err) {
+      console.error("Supabase update session error:", err);
+    }
+  }
+
+  const local = loadLocalSessions();
+  const index = local.findIndex((s: any) => s.id === id);
+  if (index !== -1) {
+    local[index] = { ...local[index], ...updatedSession };
+    saveLocalSessions(local);
+    res.json(local[index]);
+  } else {
+    res.status(404).json({ error: "Session not found" });
+  }
+});
+
+app.delete("/api/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.from("sessions").delete().eq("id", id);
+      if (!error) {
+        return res.json({ success: true });
+      }
+    } catch (err) {
+      console.error("Supabase delete session error:", err);
+    }
+  }
+
+  const local = loadLocalSessions();
+  const updated = local.filter((s: any) => s.id !== id);
+  saveLocalSessions(updated);
+  res.json({ success: true });
+});
+
+// --- Alerts CRUD Endpoints ---
+app.get("/api/alerts", async (req, res) => {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("alerts").select("*");
+      if (!error && data) {
+        return res.json(data);
+      }
+    } catch (err) {
+      console.error("Supabase select alerts error:", err);
+    }
+  }
+  const local = loadLocalAlerts();
+  res.json(local);
+});
+
+app.post("/api/alerts", async (req, res) => {
+  const newAlert = req.body;
+  if (!newAlert.id) {
+    newAlert.id = `alert-${Date.now()}`;
+  }
+  if (!newAlert.status) {
+    newAlert.status = "pending";
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("alerts").insert([newAlert]).select();
+      if (!error && data) {
+        return res.status(201).json(data[0]);
+      }
+    } catch (err) {
+      console.error("Supabase insert alert error:", err);
+    }
+  }
+
+  const local = loadLocalAlerts();
+  local.unshift(newAlert);
+  saveLocalAlerts(local);
+  res.status(201).json(newAlert);
+});
+
+app.put("/api/alerts/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedAlert = req.body;
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from("alerts").update(updatedAlert).eq("id", id).select();
+      if (!error && data) {
+        return res.json(data[0]);
+      }
+    } catch (err) {
+      console.error("Supabase update alert error:", err);
+    }
+  }
+
+  const local = loadLocalAlerts();
+  const index = local.findIndex((a: any) => a.id === id);
+  if (index !== -1) {
+    local[index] = { ...local[index], ...updatedAlert };
+    saveLocalAlerts(local);
+    res.json(local[index]);
+  } else {
+    res.status(404).json({ error: "Alert not found" });
+  }
+});
+
+app.delete("/api/alerts/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.from("alerts").delete().eq("id", id);
+      if (!error) {
+        return res.json({ success: true });
+      }
+    } catch (err) {
+      console.error("Supabase delete alert error:", err);
+    }
+  }
+
+  const local = loadLocalAlerts();
+  const updated = local.filter((a: any) => a.id !== id);
+  saveLocalAlerts(updated);
+  res.json({ success: true });
+});
+
+// --- Unified WhatsApp / n8n Webhook Listener ---
+app.post("/api/webhooks/whatsapp", async (req, res) => {
+  const payload = req.body;
+  const cpf = payload.cpf || payload.taxId || "";
+  const name = payload.name || payload.senderName || payload.contactName || "Colaborador Externo";
+  const text = payload.message || payload.text || payload.body || "Olá, preciso de ajuda.";
+  const email = payload.email || "";
+  const phone = payload.phone || payload.senderPhone || payload.from || "";
+  const avatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuDZUdMK5kDqPr_dktmNvqbkkrKhkJc2IMw7J1yaHWJls7LDzO8Kj3FQ_sj5JimhGNLZDT-5H8zoUscocsgoa_akQ5WfKmZjiEg-OyRSbbtAX7M8K-_K9GIICazC0CH0JN7TyAkCtloAUTLKA3y1C1GNvQBCwP8Ro9ah0CCAByHdd9iGsR9uT2rlsaQUmJrg0OT0V8lPw4fS5P6ikzca_h3vdOEPs6OPyoXPTqRzVCYbvmU8Pr1I1R5tkwpVho0rh0YtPTZCg4qsTw";
+
+  const sessionId = phone ? `session-${phone}` : `session-${Date.now()}`;
+  const timestamp = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  const newMessage = {
+    id: `msg-${Date.now()}`,
+    sender: "user" as const,
+    text: text,
+    time: timestamp
+  };
+
+  const localSessions = loadLocalSessions();
+  const existingIndex = localSessions.findIndex((s: any) => s.id === sessionId || (phone && s.id.includes(phone)));
+
+  let sessionToSave;
+
+  if (existingIndex !== -1) {
+    localSessions[existingIndex].messages.push(newMessage);
+    const lText = text.toLowerCase();
+    if (lText.includes("atendente") || lText.includes("humano") || lText.includes("urgente") || lText.includes("falar com pessoa")) {
+      localSessions[existingIndex].status = "Atenção Humana";
+      localSessions[existingIndex].statusLabel = "Ação Necessária: Transbordo Humano";
+    }
+    sessionToSave = localSessions[existingIndex];
+  } else {
+    sessionToSave = {
+      id: sessionId,
+      name: name,
+      avatar: avatar,
+      status: "Aguardando CPF" as const,
+      statusLabel: "Status: Aguardando consentimento legal",
+      project: "Trade Geral",
+      matricula: phone ? `TEL-${phone}` : "MAT-WEBHOOK",
+      cpf: cpf,
+      email: email,
+      lgpdState: cpf ? ("waiting_confirm" as const) : ("waiting_name" as const),
+      messages: [newMessage]
+    };
+    localSessions.unshift(sessionToSave);
+  }
+
+  saveLocalSessions(localSessions);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from("sessions").upsert(sessionToSave);
+      console.log(`Synced session ${sessionId} to Supabase on webhook`);
+    } catch (err) {
+      console.error("Supabase upsert session failed during webhook:", err);
+    }
+  }
+
+  const lText = text.toLowerCase();
+  if (lText.includes("denuncia") || lText.includes("rescisao") || lText.includes("erro") || lText.includes("problema") || lText.includes("atendente") || lText.includes("humano")) {
+    const alertId = `alert-${Date.now()}`;
+    const newAlert = {
+      id: alertId,
+      type: lText.includes("denuncia") ? ("denuncia" as const) : lText.includes("rescisao") ? ("rescisao" as const) : ("erro-holerite" as const),
+      title: lText.includes("denuncia") ? "Alerta de Denúncia" : lText.includes("rescisao") ? "Rescisão Crítica" : "Erro / Chamado de Benefício",
+      time: "Agora",
+      description: `Mensagem de ${name}: "${text.substring(0, 60)}${text.length > 60 ? "..." : ""}"`,
+      status: "pending" as const
+    };
+
+    const localAlerts = loadLocalAlerts();
+    localAlerts.unshift(newAlert);
+    saveLocalAlerts(localAlerts);
+
+    if (supabase) {
+      try {
+        await supabase.from("alerts").insert([newAlert]);
+      } catch (err) {
+        console.error("Supabase insert alert failed during webhook:", err);
+      }
+    }
+  }
+
+  res.json({ success: true, session: sessionToSave });
 });
 
 // Emika AI Q&A API Endpoint

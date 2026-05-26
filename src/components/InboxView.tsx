@@ -8,7 +8,8 @@ interface InboxViewProps {
     sessionId: string, 
     text: string, 
     sender: "user" | "emika" | "system",
-    extraUpdates?: Partial<ChatSession>
+    extraUpdates?: Partial<ChatSession>,
+    extraMsgUpdates?: Partial<ChatMessage>
   ) => void;
   onNewSession: (session: ChatSession) => void;
   apiCredentials?: ApiCredentials;
@@ -28,6 +29,40 @@ export default function InboxView({
   const [audioProgress, setAudioProgress] = useState(33);
   const [isLoadingReply, setIsLoadingReply] = useState(false);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Keyboard, Emojis, Audio simulator and file drag state definitions
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{ name: string; size: string; type: string } | null>(null);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recordingTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isRecordingAudio) {
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    }
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, [isRecordingAudio]);
+
+  const formatRecordingTime = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+  };
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
 
@@ -77,10 +112,101 @@ export default function InboxView({
     );
   }
 
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Convert file size to human readable
+    const sizeKB = (file.size / 1024).toFixed(1);
+    const labelSize = file.size > 1024 * 1024 
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+      : `${sizeKB} KB`;
+
+    setSelectedFile({
+      name: file.name,
+      size: labelSize,
+      type: file.name.split(".").pop() || "doc"
+    });
+  };
+
+  const handleSendAudioFile = (seconds: number) => {
+    if (seconds <= 0) return;
+    
+    const randomTranscripts = [
+      "Oi, preciso de ajuda com o meu informe de rendimentos para o Imposto de Renda.",
+      "Gostaria de agendar as minhas férias para o mês que vem, como funciona?",
+      "O meu vale alimentação não caiu na data certa. Pode verificar meu saldo?",
+      "Desejo saber qual é o prazo para homologação de rescisão no meu setor."
+    ];
+    
+    const transcription = randomTranscripts[Math.floor(Math.random() * randomTranscripts.length)];
+    const durationLabel = formatRecordingTime(seconds);
+
+    onSendMessage(activeSessionId, `🎙️ Áudio gravado (${durationLabel})`, "user", {}, {
+      isAudio: true,
+      audioDuration: durationLabel,
+      transcription: transcription
+    });
+
+    setIsRecordingAudio(false);
+    setRecordingSeconds(0);
+
+    // Prompt Emika AI to auto-reply to the transcription!
+    setIsLoadingReply(true);
+    setTimeout(async () => {
+      let emikaReply = "";
+      const msgLower = transcription.toLowerCase();
+      
+      if (msgLower.includes("férias") || msgLower.includes("ferias")) {
+        emikaReply = "Perfeito! Conforme seu áudio, identifiquei interesse sobre **FÉRIAS (Opção 3)**. 🏖️\n\nPelo sistema da MK9, você já possui 1 período aquisitivo completo! Seu saldo disponível é de 30 dias.\n\nVocê gostaria de solicitar o adiantamento de 1/3 das férias ou dividir em 2 períodos?";
+      } else if (msgLower.includes("rendimentos") || msgLower.includes("imposto")) {
+        emikaReply = "Olá! Identifiquei sua dúvida sobre **Informe de Rendimentos**. 📄\n\nTodos os informes de rendimentos anuais MK9 estão arquivados na pasta digital e foram disparados para seu e-mail corporativo.\n\nVocê deseja que eu reenvie a folha atual para seu e-mail cadastrado?";
+      } else if (msgLower.includes("alimentação") || msgLower.includes("alimentacao") || msgLower.includes("vale")) {
+        emikaReply = "Compreendido! Questões sobre **Benefícios (Opção 4)**. 🍽️\n\nO crédito do VA/VR Alelo é programado sempre no 1º dia útil de cada mês. No seu extrato, consta que o lote foi deferido com sucesso.\n\nRecomendo verificar diretamente no aplicativo Alelo.";
+      } else {
+        emikaReply = `Entendi perfeitamente sua mensagem de voZ! 🎙️\n\nVocê perguntou: *"${transcription}"*\n\nComo posso te auxiliar sobre esse assunto para seu cadastro ativo?`;
+      }
+
+      onSendMessage(activeSessionId, emikaReply, "emika");
+      setIsLoadingReply(false);
+    }, 1800);
+  };
+
   const handleSendAsAgent = async () => {
-    if (!replyText.trim()) return;
+    if (!replyText.trim() && !selectedFile) return;
+    
     const textToSend = replyText;
+    const fileToSend = selectedFile;
+
     setReplyText("");
+    setSelectedFile(null);
+    setShowEmojiPicker(false);
+
+    if (fileToSend) {
+      // Send message containing file metadata
+      onSendMessage(activeSessionId, textToSend || `Enviei o arquivo: ${fileToSend.name}`, "user", {}, {
+        isFile: true,
+        fileName: fileToSend.name,
+        fileSize: fileToSend.size,
+        fileType: fileToSend.type
+      });
+
+      // Emika reacts smartly to the uploaded file!
+      setIsLoadingReply(true);
+      setTimeout(() => {
+        let reaction = "";
+        const nameLower = fileToSend.name.toLowerCase();
+        if (nameLower.includes("pdf") || nameLower.includes("contracheque") || nameLower.includes("atestado")) {
+          reaction = `Recebi seu documento **${fileToSend.name}** (${fileToSend.size}) com sucesso! 📁\n\nJá encaminhei para a fila automatizada do DP da MK9TRADE via Workflow n8n. Deseja registrar alguma observação extra sobre esse envio?`;
+        } else {
+          reaction = `Arquivo **${fileToSend.name}** anexado à conversa de RH com sucesso! 📎\n\nNossa assistente e equipe analisaram os metadados. Deseja realizar mais alguma consulta?`;
+        }
+        onSendMessage(activeSessionId, reaction, "emika");
+        setIsLoadingReply(false);
+      }, 1800);
+
+      return;
+    }
 
     // 1. Append message as User (or Agent simulated reply)
     onSendMessage(activeSessionId, textToSend, "user");
@@ -338,8 +464,32 @@ export default function InboxView({
         </header>
 
         {/* Messaging Area with realistic beige tiled wallpaper background */}
+        {/* Drag and Drop Overlays */}
         <div 
-          className="flex-grow p-6 overflow-y-auto chat-scrollbar flex flex-col gap-3 relative"
+          className={`flex-grow p-6 overflow-y-auto chat-scrollbar flex flex-col gap-3 relative transition-all duration-200 ${
+            isDraggingOver ? "bg-[#efeae2]/40 ring-4 ring-[#00a884] ring-inset" : ""
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(true);
+          }}
+          onDragLeave={() => setIsDraggingOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) {
+              const sizeKB = (file.size / 1024).toFixed(1);
+              const labelSize = file.size > 1024 * 1024 
+                ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+                : `${sizeKB} KB`;
+              setSelectedFile({
+                name: file.name,
+                size: labelSize,
+                type: file.name.split(".").pop() || "doc"
+              });
+            }
+          }}
           style={{
             backgroundColor: "#efeae2",
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%23e5ddd5' fill-opacity='0.4'%3E%3Cpath fill-rule='evenodd' d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm43-23c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm-22 36c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm0-36c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3z'/%3E%3C/g%3E%3C/svg%3E")`
@@ -394,8 +544,29 @@ export default function InboxView({
                     </div>
                   )}
 
-                  {/* Audio Player formatted if message contains audio */}
-                  {m.isAudio ? (
+                   {/* File Attachment Card formatted if message contains file */}
+                  {m.isFile ? (
+                    <div className="space-y-2 mt-1 min-w-[240px]">
+                      <div className="flex items-center gap-3 bg-white/60 p-2.5 rounded-lg border border-gray-100 flex-grow shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
+                        <div className="w-10 h-10 rounded bg-[#ffeecd] border border-[#ffd17d] text-[#b37400] flex items-center justify-center font-bold text-xs select-none uppercase font-mono shadow-sm">
+                          {m.fileType || "doc"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate" title={m.fileName}>{m.fileName}</p>
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">{m.fileSize}</p>
+                        </div>
+                        <button
+                          onClick={() => alert(`Visualizando documento corporativo: ${m.fileName}`)}
+                          className="w-8 h-8 rounded-full hover:bg-gray-100 text-[#00a884] flex items-center justify-center transition-all cursor-pointer active:scale-90"
+                        >
+                          <span className="material-symbols-outlined !text-base">download</span>
+                        </button>
+                      </div>
+                      {m.text && m.text !== `Enviei o arquivo: ${m.fileName}` && (
+                        <p className="text-[13.5px] font-sans text-[#111b21] leading-[18px] whitespace-pre-line break-words">{m.text}</p>
+                      )}
+                    </div>
+                  ) : m.isAudio ? (
                     <div className="space-y-2 mt-1 min-w-[240px]">
                       <div className="flex items-center gap-3 bg-[#e8fbf3]/30 p-2 rounded-lg border border-teal-500/10">
                         <button
@@ -476,42 +647,168 @@ export default function InboxView({
           <div ref={messageEndRef} />
         </div>
 
+        {/* Hidden inputs to support real local file uploads */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileSelected} 
+          className="hidden" 
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip"
+        />
+
+        {/* Staged File Attachment Review Panel */}
+        {selectedFile && (
+          <div className="mx-3.5 mt-2 bg-white rounded-xl border border-gray-150 p-4 shadow-lg flex items-center justify-between animate-in slide-in-from-bottom-3 duration-200">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 bg-teal-50 text-[#00a884] rounded-lg flex items-center justify-center font-bold text-xs uppercase font-mono shadow-inner border border-teal-100">
+                {selectedFile.type}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-800">{selectedFile.name}</p>
+                <p className="text-xs text-gray-400 font-mono mt-0.5 flex items-center gap-1.5">
+                  <span>Tamanho: {selectedFile.size}</span>
+                  <span className="text-gray-300">•</span>
+                  <span className="text-teal-600 font-medium font-sans bg-teal-50 px-1 py-0.2 rounded text-[10px]">Pronto para enviar</span>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined !text-lg">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Emoji Selector Floating Popover */}
+        {showEmojiPicker && (
+          <div className="absolute bottom-16 left-4 z-40 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 w-72 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-gray-100">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest font-sans">Emojis Rápidos</p>
+              <button 
+                onClick={() => setShowEmojiPicker(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="material-symbols-outlined !text-sm leading-none">close</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {[
+                "😊", "👍", "❤️", "👏", "😂", "🎉", 
+                "🚀", "💡", "😢", "🤔", "✅", "❌", 
+                "📋", "🏖️", "💰", "🏢", "✉️", "📞"
+              ].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    setReplyText((prev) => prev + emoji);
+                    // Leave open for fast typing but focus input triggers
+                  }}
+                  className="w-9 h-9 text-lg flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer active:scale-90 select-none pb-0.5"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Messaging footer input styled exactly like WhatsApp Web input bar */}
         <footer className="p-3 bg-[#f0f2f5] border-t border-gray-200/50 flex items-center gap-3 relative">
-          <button className="text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1">
-            <Smile size={23} />
-          </button>
-          <button className="text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1">
-            <Paperclip size={21} className="rotate-45" />
-          </button>
-          
-          <div className="flex-grow bg-white px-3.5 py-2.5 rounded-lg flex items-center border border-white filter drop-shadow-sm">
-            <input
-              type="text"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSendAsAgent();
-              }}
-              placeholder={activeSession.lgpdState === "verified" ? "Digite uma mensagem" : "Responda a Emika..."}
-              className="w-full bg-transparent border-none text-[14px] text-[#111b21] placeholder-gray-400 font-sans focus:outline-none focus:ring-0"
-            />
-          </div>
+          {/* Simulated Active Studio Voice Recording Flow */}
+          {isRecordingAudio ? (
+            <div className="w-full flex items-center justify-between bg-white px-4 py-2 rounded-xl border border-red-200/50 shadow-sm animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-4">
+                <span className="w-2.5 h-2.5 bg-red-600 rounded-full animate-ping"></span>
+                <p className="text-xs font-bold text-red-600 font-mono flex items-center gap-1">
+                  GRAVANDO ÁUDIO <span className="bg-red-50 py-0.5 px-1.5 rounded-md text-[10px] ml-1.5 border border-red-100">{formatRecordingTime(recordingSeconds)}</span>
+                </p>
+                
+                {/* Visual active waveforms bouncing simulator */}
+                <div className="flex gap-1.5 items-center pl-4 py-1">
+                  <span className="w-1 h-3.5 bg-red-500 rounded animate-bounce [animation-delay:0s] duration-700"></span>
+                  <span className="w-1 h-5.5 bg-red-500 rounded animate-bounce [animation-delay:0.1s] duration-700"></span>
+                  <span className="w-1 h-7 bg-red-500 rounded animate-bounce [animation-delay:0.25s] duration-700"></span>
+                  <span className="w-1 h-4 bg-red-500 rounded animate-bounce [animation-delay:0.15s] duration-700"></span>
+                  <span className="w-1 h-6 bg-red-500 rounded animate-bounce [animation-delay:0.35s] duration-700"></span>
+                </div>
+              </div>
 
-          {replyText.trim() ? (
-            <button
-              onClick={handleSendAsAgent}
-              className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95"
-            >
-              <Send size={16} fill="white" className="ml-0.5" />
-            </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsRecordingAudio(false);
+                    setRecordingSeconds(0);
+                  }}
+                  className="w-10 h-10 rounded-full hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center transition-all cursor-pointer"
+                  title="Cancelar"
+                >
+                  <span className="material-symbols-outlined !text-lg">delete</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendAudioFile(recordingSeconds || 4)}
+                  className="px-4 py-2 bg-[#dbebe6] hover:bg-[#c9e4db] text-[#00a884] text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Enviar Áudio Gravado"
+                >
+                  <span className="material-symbols-outlined !text-sm">check</span>
+                  <span>Enviar Áudio</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <button
-              onClick={() => alert("Gravação de áudio simulada na plataforma. Fale agora sobre seu INSS, FGTS ou Benefício!")}
-              className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95"
-            >
-              <span className="material-symbols-outlined !text-[18px]">mic</span>
-            </button>
+            <>
+              <button 
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className={`text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1 rounded-full hover:bg-gray-200/50 ${
+                  showEmojiPicker ? "text-primary bg-primary/5" : ""
+                }`}
+                title="Mostrar Emojis"
+              >
+                <Smile size={23} />
+              </button>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[#54656f] hover:text-gray-800 transition-colors cursor-pointer p-1 rounded-full hover:bg-gray-200/50"
+                title="Anexar Arquivo ou Documento"
+              >
+                <Paperclip size={21} className="rotate-45" />
+              </button>
+              
+              <div className="flex-grow bg-white px-3.5 py-2.5 rounded-lg flex items-center border border-white filter drop-shadow-sm">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSendAsAgent();
+                  }}
+                  placeholder={activeSession.lgpdState === "verified" ? "Digite uma mensagem" : "Responda a Emika..."}
+                  className="w-full bg-transparent border-none text-[14px] text-[#111b21] placeholder-gray-400 font-sans focus:outline-none focus:ring-0"
+                />
+              </div>
+
+              {replyText.trim() || selectedFile ? (
+                <button
+                  onClick={handleSendAsAgent}
+                  className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                >
+                  <Send size={16} fill="white" className="ml-0.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsRecordingAudio(true);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="p-2.5 rounded-full bg-[#00a884] hover:bg-[#00a884]/95 text-white shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-95 duration-200"
+                  title="Clique para testar gravação de áudio"
+                >
+                  <span className="material-symbols-outlined !text-[18px]">mic</span>
+                </button>
+              )}
+            </>
           )}
         </footer>
       </section>
